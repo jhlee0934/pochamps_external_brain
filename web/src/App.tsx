@@ -16,24 +16,51 @@ const NAV = [
   { to: '/matchup', label: '대면표' },
 ];
 
-export function App() {
-  const [store, setStoreRaw] = useStoredState<PartyStore>('pochamps.parties.v1', initialPartyStore);
+function resolveCurrentId(s: PartyStore): string {
+  return s.parties.some((p) => p.id === s.currentId) ? s.currentId : s.parties[0].id;
+}
 
-  const setStore = useCallback((update: (s: PartyStore) => PartyStore) => setStoreRaw(update), [setStoreRaw]);
+// Storage that lost its parties (hand-edited, older format) starts over instead of crashing.
+const isUsableStore = (s: PartyStore) => Array.isArray(s?.parties) && s.parties.length > 0;
+const usable = (s: PartyStore) => (isUsableStore(s) ? s : initialPartyStore());
+
+export function App() {
+  const [storeRaw, setStoreRaw] = useStoredState<PartyStore>('pochamps.parties.v1', initialPartyStore);
+  const store = useMemo(() => usable(storeRaw), [storeRaw]);
+
+  const setStore = useCallback(
+    (update: (s: PartyStore) => PartyStore) => setStoreRaw((s) => update(usable(s))),
+    [setStoreRaw],
+  );
 
   // Older saves could hold a mega form as the species; store it as base species + stone.
   useEffect(() => {
     if (!store.parties.some((p) => p.slots.some((s) => s && isMegaForm(s.species)))) return;
-    setStoreRaw((s) => ({ ...s, parties: s.parties.map((p) => ({ ...p, slots: p.slots.map(normalizeSet) })) }));
+    setStoreRaw((raw) => {
+      const s = usable(raw);
+      return { ...s, parties: s.parties.map((p) => ({ ...p, slots: p.slots.map(normalizeSet) })) };
+    });
   }, [store, setStoreRaw]);
-  const current = store.parties.find((p) => p.id === store.currentId) ?? store.parties[0];
+  // Shown and edited party must be the same one: a stale or missing currentId falls back to the
+  // first party everywhere, and is rewritten so storage agrees with what is on screen.
+  const currentId = resolveCurrentId(store);
+  const current = store.parties.find((p) => p.id === currentId)!;
+  useEffect(() => {
+    if (storeRaw !== store || store.currentId !== currentId) {
+      setStoreRaw((s) => {
+        const fixed = usable(s);
+        return { ...fixed, currentId: resolveCurrentId(fixed) };
+      });
+    }
+  }, [storeRaw, store, currentId, setStoreRaw]);
 
   const updateCurrent = useCallback(
     (update: (p: Party) => Party) =>
-      setStoreRaw((s) => ({
-        ...s,
-        parties: s.parties.map((p) => (p.id === (s.currentId ?? s.parties[0].id) ? update(p) : p)),
-      })),
+      setStoreRaw((raw) => {
+        const s = usable(raw);
+        const id = resolveCurrentId(s);
+        return { ...s, parties: s.parties.map((p) => (p.id === id ? update(p) : p)) };
+      }),
     [setStoreRaw],
   );
 

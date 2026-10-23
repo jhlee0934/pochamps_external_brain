@@ -104,7 +104,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
     () => (set.species && targets.data ? { me: set, targets: targets.data } : null),
     [set, targets.data],
   );
-  const { output, outputFor, pending } = useWorkerJob<BenchmarkRequest, BenchmarkResult>(createWorker, request);
+  const { output, outputFor, pending, error } = useWorkerJob<BenchmarkRequest, BenchmarkResult>(createWorker, request);
   const current = outputFor?.me.species === set.species && outputFor.targets === targets.data ? output : undefined;
 
   const byKey = useMemo(() => new Map((targets.data ?? []).map((t) => [t.key, t])), [targets.data]);
@@ -176,7 +176,8 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
         싱글 메타 상위 포켓몬의 사용률 1위 세팅(성격·SP·도구, 메가스톤이면 메가진화)을 샘플로, 지금 배분으로 누구를 잡고 누구의 공격을
         버티는지 보여줍니다. 기술·도구를 바꿔도 바로 다시 계산합니다.
       </p>
-      {(targets.loading || !current) && <Loading label={targets.loading ? '메타 샘플을 불러오는 중…' : '계산 중…'} />}
+      {error && <p className="error-note">계산 중 오류가 났습니다: {error}</p>}
+      {!error && (targets.loading || !current) && <Loading label={targets.loading ? '메타 샘플을 불러오는 중…' : '계산 중…'} />}
 
       {current && (
         <div className="bench-body" aria-busy={pending}>

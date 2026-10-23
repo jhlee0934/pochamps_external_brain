@@ -17,7 +17,8 @@ const LABEL: Record<Kind, string> = {
 const forward = koNames as unknown as Record<Kind, Record<string, string>>;
 
 const HANGUL = /[가-힣]/;
-const norm = (s: string) => s.replace(/[\s()·:'.-]/g, '').toLowerCase();
+/** Normalizes a name for matching: no spaces or punctuation, lowercase. */
+export const norm = (s: string) => s.replace(/[\s()·:'.-]/g, '').toLowerCase();
 
 // normalized Korean -> calc id. The first id wins, so base forms keep plain names
 // (e.g. "냐오닉스" stays Meowstic even though both gendered megas are "메가냐오닉스").

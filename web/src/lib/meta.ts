@@ -8,6 +8,8 @@ export interface MetaTarget {
   set: PokemonSet;
   /** Share of this ladder entry using this form (item usage %), when the entry has several forms. */
   share?: number;
+  /** The ladder entry's usage data (shared by all forms of the entry). */
+  usage: UsageSummary;
 }
 
 // A form gets its own set when its mega stone is in the top 5 items with at least 5% usage.
@@ -49,7 +51,7 @@ export async function loadMetaTargets(count: number): Promise<MetaTarget[]> {
     entries.slice(0, count).map(async (e) => {
       try {
         const usage = await getUsage(usageKey(e.pokemon));
-        return metaVariants(e.pokemon, usage).map((v) => ({ key: targetKey(e.rank, v.set), rank: e.rank, ...v }));
+        return metaVariants(e.pokemon, usage).map((v) => ({ key: targetKey(e.rank, v.set), rank: e.rank, usage, ...v }));
       } catch {
         return [];
       }

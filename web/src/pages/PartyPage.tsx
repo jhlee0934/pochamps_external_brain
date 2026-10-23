@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { gen, getRanking, getUsage, ko, toID, usageKey } from '../lib/data';
+import { gen, ko, toID } from '../lib/data';
 import { useAsync, useStoredState } from '../lib/hooks';
 import { newParty, useParty } from '../lib/party';
-import { metaVariants } from '../lib/meta';
+import { loadMetaTargets, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
 import { exportTeam, importTeam } from '../lib/showdown';
 import { multiplier, multiplierLabel, TYPES } from '../lib/typechart';
@@ -96,38 +96,36 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   // Setup moves are off by default: one row per move per Pokemon adds up quickly.
   const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.speed.setup', []);
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.speed.count', '50');
-  const meta = useAsync(async () => {
-    const { entries } = await getRanking('Singles');
-    const rows = await Promise.all(
-      entries.slice(0, Number(count)).map(async (e): Promise<MetaSpeedRow[]> => {
-        try {
-          const usage = await getUsage(usageKey(e.pokemon));
-          const variants = metaVariants(e.pokemon, usage);
-          // A scarf common enough to plan around gets its own row.
-          const scarf = usage.items
-            .slice(0, SCARF_TOP)
-            .find((i) => i.name === SCARF && (i.pct ?? 0) >= SCARF_MIN_PCT);
-          const setups = usage.moves
-            .slice(0, SETUP_TOP)
-            .filter((m) => SPEED_SETUP[toID(m.name)] && (m.pct ?? 0) >= SETUP_MIN_PCT)
-            .map((m) => ({ move: m.name, stages: SPEED_SETUP[toID(m.name)], pct: m.pct }));
-          // One row per form (Mega X / Mega Y / base); a scarf row only when no form already holds one.
-          const hasScarf = variants.some((v) => v.set.item === SCARF);
-          return variants.map((v, i) => ({
-            set: v.set,
-            share: v.share,
-            scarfPct: v.set.item === SCARF ? scarf?.pct : undefined,
-            scarfRow:
-              i === 0 && scarf && !hasScarf ? { set: { ...v.set, item: SCARF }, pct: scarf.pct } : undefined,
-            setups,
-          }));
-        } catch {
-          return [];
-        }
-      }),
-    );
-    return rows.flat();
-  }, [count]);
+  const targets = useAsync(() => loadMetaTargets(Number(count)), [count]);
+  // One row per form (Mega X / Mega Y / base) from the shared meta sample, plus a scarf row when a
+  // scarf is common and no form of that Pokemon already holds one.
+  const meta = useMemo(() => {
+    if (!targets.data) return { data: undefined };
+    const formsByRank = new Map<number, MetaTarget[]>();
+    for (const t of targets.data) formsByRank.set(t.rank, [...(formsByRank.get(t.rank) ?? []), t]);
+    const rows: MetaSpeedRow[] = [];
+    for (const forms of formsByRank.values()) {
+      const { usage } = forms[0];
+      const scarf = usage.items
+        .slice(0, SCARF_TOP)
+        .find((i) => i.name === SCARF && (i.pct ?? 0) >= SCARF_MIN_PCT);
+      const setups = usage.moves
+        .slice(0, SETUP_TOP)
+        .filter((m) => SPEED_SETUP[toID(m.name)] && (m.pct ?? 0) >= SETUP_MIN_PCT)
+        .map((m) => ({ move: m.name, stages: SPEED_SETUP[toID(m.name)], pct: m.pct }));
+      const hasScarf = forms.some((f) => f.set.item === SCARF);
+      forms.forEach((f, i) =>
+        rows.push({
+          set: f.set,
+          share: f.share,
+          scarfPct: f.set.item === SCARF ? scarf?.pct : undefined,
+          scarfRow: i === 0 && scarf && !hasScarf ? { set: { ...f.set, item: SCARF }, pct: scarf.pct } : undefined,
+          setups,
+        }),
+      );
+    }
+    return { data: rows };
+  }, [targets.data]);
 
   // Setup moves seen in the sample, with how many Pokemon qualify for each.
   const setupMoves = useMemo(() => {
@@ -201,7 +199,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
           </div>
         )}
       </div>
-      {meta.loading && <Loading label={`메타 상위 ${count}마리 세팅을 불러오는 중…`} />}
+      {targets.loading && <Loading label={`메타 상위 ${count}마리 세팅을 불러오는 중…`} />}
       <ol className="speed-line">
         {rows.map((r, i) => (
           <li key={i} className={r.mine ? 'mine' : r.boost ? 'boost' : toID(r.set.item) === 'choicescarf' ? 'scarf' : ''}>

@@ -12,6 +12,11 @@ configureBattleData({
   headers: { 'user-agent': 'pochamps-mcp (personal, non-commercial)' },
 });
 
+// A stray rejected promise in one tool call must not take the whole server down.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+});
+
 if (config.mcpPathSecret.length < 16) {
   console.error('MCP_PATH_SECRET must be set (16+ chars). It is the only access control.');
   process.exit(1);

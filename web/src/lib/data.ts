@@ -1,10 +1,11 @@
 // Thin layer over the shared server modules: names, sprites and option lists for pickers.
 import { toID } from '@smogon/calc';
 import { gen } from '@shared/calc/champions';
-import { toEnglish, toKorean, type Kind } from '@shared/i18n';
+import { norm, toEnglish, toKorean, type Kind } from '@shared/i18n';
+import { usageKey } from '@shared/calc/forms';
 import pokeapiIds from '@shared/data/pokeapi-ids.json';
 
-export { gen, toEnglish, toKorean, toID, type Kind };
+export { gen, toEnglish, toKorean, toID, usageKey, type Kind };
 export {
   getUsage,
   getRanking,
@@ -20,19 +21,6 @@ export {
 export function ko(kind: Kind, en: string | undefined): string {
   if (!en) return '';
   return toKorean(kind, en) ?? en;
-}
-
-// "Charizard-Mega-Y" -> "Charizard", "Meowstic-F-Mega" -> "Meowstic-F", "Floette-Mega" -> "Floette-Eternal".
-function megaBaseName(name: string, baseSpecies?: string): string {
-  if (!name.includes('-Mega')) return name;
-  const prefix = name.split('-Mega')[0].replace(/-M$/, ''); // Meowstic-M-Mega: the male form is the plain one
-  return baseSpecies?.startsWith(prefix) ? baseSpecies : prefix;
-}
-
-/** Megas share their base Pokemon's ladder entry; other forms (Rotom-Wash, Raichu-Alola) have their own. */
-export function usageKey(species: string): string {
-  const s = gen.species.get(toID(species));
-  return toID(s ? megaBaseName(s.name, s.baseSpecies) : species);
 }
 
 export function speciesTypes(species: string): string[] {
@@ -61,7 +49,6 @@ export interface Option {
   search: string;
 }
 
-const norm = (s: string) => s.replace(/[\s()·:'.-]/g, '').toLowerCase();
 
 function makeOption(kind: Kind, en: string, hint?: string): Option {
   const k = ko(kind, en);

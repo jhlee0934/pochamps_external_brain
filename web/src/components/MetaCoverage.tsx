@@ -51,7 +51,7 @@ export function MetaCoverage({
     () => (targets.data && attacker.species ? { attacker, extras, field, isCrit, targets: targets.data } : null),
     [targets.data, attacker, extras, field, isCrit],
   );
-  const { output, pending } = useWorkerJob<CoverageRequest, CoverageResult>(createWorker, request);
+  const { output, pending, error } = useWorkerJob<CoverageRequest, CoverageResult>(createWorker, request);
 
   // Weather for the 결정력 number: the one picked by hand, else the attacker's own weather ability.
   const attackerWeather = field.weather ?? autoWeather(field, attacker, extras, newSet(), {})?.weather;
@@ -100,6 +100,7 @@ export function MetaCoverage({
         잡는지 보여줍니다. 위의 날씨·필드·해저드·급소 설정이 그대로 적용되고, 날씨를 고르지 않으면 가뭄·모래날림 같은 날씨 특성(공격 측 우선)이 자동으로 적용됩니다. 아이콘을 누르면 방어 측으로 설정합니다.
       </p>
       {targets.loading && !targets.data && <Loading label="메타 포켓몬 세팅을 불러오는 중…" />}
+      {error && <p className="error-note">계산 중 오류가 났습니다: {error}</p>}
       {!attacker.species && <p className="muted">공격 측 포켓몬을 먼저 정하세요.</p>}
       {targets.data && attacker.species && rows.length === 0 && <p className="muted">공격 기술이 없습니다.</p>}
       <div className="coverage" aria-busy={pending}>

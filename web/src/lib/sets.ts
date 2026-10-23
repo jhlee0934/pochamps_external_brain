@@ -1,6 +1,7 @@
 import { Pokemon } from '@smogon/calc';
 import type { SideInput, Stacks } from '@shared/calc/champions';
 import { SP_MAX_PER_STAT, SP_MAX_TOTAL } from '@shared/calc/champions';
+import { megaInfo, megaOptions, type MegaInfo } from '@shared/calc/forms';
 import { gen, toID, type StatPoints, type UsageSummary } from './data';
 
 export { SP_MAX_PER_STAT, SP_MAX_TOTAL };
@@ -33,32 +34,12 @@ export function newSet(species = ''): PokemonSet {
 
 export const spTotal = (sp: StatPoints) => STATS.reduce((sum, s) => sum + (sp[s] ?? 0), 0);
 
-export interface MegaInfo {
-  base: string;
-  mega: string;
-  stone: string;
-}
+export { megaOptions, type MegaInfo };
 
-// Built from the mega stones: each stone maps base species -> mega form.
-const MEGA_BY_FORM = new Map<string, MegaInfo>();
-const MEGAS_BY_BASE = new Map<string, MegaInfo[]>();
-for (const item of gen.items) {
-  const map = (item as { megaStone?: Record<string, string> }).megaStone;
-  for (const [base, mega] of Object.entries(map ?? {})) {
-    const info = { base, mega, stone: item.name };
-    MEGA_BY_FORM.set(toID(mega), info);
-    MEGAS_BY_BASE.set(toID(base), [...(MEGAS_BY_BASE.get(toID(base)) ?? []), info]);
-  }
-}
-for (const list of MEGAS_BY_BASE.values()) list.sort((a, b) => a.mega.localeCompare(b.mega));
-
-export const isMegaForm = (species: string) => MEGA_BY_FORM.has(toID(species));
+export const isMegaForm = (species: string) => !!megaInfo(species);
 
 /** The species a mega form evolves from; other species are returned as is. */
-export const megaBase = (species: string) => MEGA_BY_FORM.get(toID(species))?.base ?? species;
-
-/** Mega evolutions available to a (non-mega) species. */
-export const megaOptions = (species: string): MegaInfo[] => MEGAS_BY_BASE.get(toID(species)) ?? [];
+export const megaBase = (species: string) => megaInfo(species)?.base ?? species;
 
 /** "X" / "Y" / "Z", or "" for a species' only (or plain) mega. */
 export function megaLabel(mega: string): string {
@@ -73,7 +54,7 @@ export function megaForm(set: Pick<PokemonSet, 'species' | 'item'>): string | un
 
 /** Sets store the base species; a mega form becomes base species + its stone. */
 export function normalizeSet<T extends PokemonSet | null | undefined>(set: T): T {
-  const info = set && MEGA_BY_FORM.get(toID(set.species));
+  const info = set && megaInfo(set.species);
   return info ? { ...set, species: info.base, item: info.stone } : set;
 }
 
@@ -92,7 +73,7 @@ export function battleSpecies(set: PokemonSet, mega = true): string {
  * Passing a mega form keeps it: the set gets the base species holding that mega's stone.
  */
 export function commonSet(species: string, usage: UsageSummary): PokemonSet {
-  const mega = MEGA_BY_FORM.get(toID(species));
+  const mega = megaInfo(species);
   const moves = usage.moves.slice(0, 4).map((m) => m.name);
   while (moves.length < 4) moves.push('');
   return {

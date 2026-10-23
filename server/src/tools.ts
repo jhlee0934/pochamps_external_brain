@@ -1,7 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ATTRIBUTION } from './config.js';
-import { CalcInputError, gen, runCalc, type SideInput } from './calc/champions.js';
+import { CalcInputError, runCalc, type SideInput } from './calc/champions.js';
+import { megaInfo, usageKey } from './calc/forms.js';
 import { getLearnset, getRanking, getTrend, getUsage, NotFoundError } from './data/battleData.js';
 import { toID } from '@smogon/calc';
 import { NameError, toEnglish, toKorean, type Kind } from './i18n.js';
@@ -88,19 +89,6 @@ const sideSchema = z.object({
 
 type SideArgs = z.infer<typeof sideSchema>;
 
-// "Charizard-Mega-Y" -> "Charizard", "Meowstic-F-Mega" -> "Meowstic-F", "Floette-Mega" -> "Floette-Eternal".
-function megaBaseName(name: string, baseSpecies?: string): string {
-  if (!name.includes('-Mega')) return name;
-  const prefix = name.split('-Mega')[0].replace(/-M$/, ''); // Meowstic-M-Mega: the male form is the plain one
-  return baseSpecies?.startsWith(prefix) ? baseSpecies : prefix;
-}
-
-// Megas share their base Pokemon's ladder entry; other forms (Rotom-Wash, Raichu-Alola) have their own.
-function usageKey(name: string): string {
-  const species = gen.species.get(toID(name));
-  return toID(species ? megaBaseName(species.name, species.baseSpecies) : name);
-}
-
 async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side: SideInput; filled: string[] }> {
   const side: SideInput = {
     ...input,
@@ -117,13 +105,16 @@ async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side
     filled.push(label);
     return top;
   };
+  // The ladder entry is the base Pokemon's. A mega form holds its own stone and has one fixed
+  // ability, so neither comes from the base Pokemon's most used options.
+  const mega = megaInfo(side.name);
   return {
     side: {
       ...side,
       nature: pick(side.nature, usage.natures[0]?.name, 'nature'),
       sp: pick(side.sp, usage.spreads[0]?.sp, 'sp'),
-      item: pick(side.item, usage.items[0]?.name, 'item'),
-      ability: pick(side.ability, usage.abilities[0]?.name, 'ability'),
+      item: pick(side.item, mega ? mega.stone : usage.items[0]?.name, 'item'),
+      ability: mega ? side.ability : pick(side.ability, usage.abilities[0]?.name, 'ability'),
     },
     filled,
   };
@@ -288,13 +279,21 @@ export function registerTools(server: McpServer): void {
     },
     async ({ attacker, defender, move, isCrit, field }) => {
       try {
-        const a = await resolveSide(attacker);
-        const d = await resolveSide(defender);
         const moveName = toEnglish('moves', move);
+        // The learnset only adds a warning, so a failed lookup must not sink the calc.
+        // Inside an async function so a bad name rejects instead of throwing before Promise.all
+        // has attached handlers (which would leave the other lookups as unhandled rejections).
+        const lookupLearnset = async () => getLearnset(usageKey(toEnglish('species', attacker.name)));
+        const [a, d, learnset] = await Promise.all([
+          resolveSide(attacker),
+          resolveSide(defender),
+          lookupLearnset().catch(() => null),
+        ]);
         const result = runCalc({ attacker: a.side, defender: d.side, move: moveName, isCrit, field });
         const warnings: string[] = [];
-        const learnset = await getLearnset(usageKey(a.side.name));
-        if (learnset && ![...learnset].some((m) => toID(m) === toID(moveName))) {
+        if (learnset === null) {
+          warnings.push('Could not check the learnset (battle data unavailable).');
+        } else if (learnset && ![...learnset].some((m) => toID(m) === toID(moveName))) {
           warnings.push(
             `${result.attacker.name} cannot learn ${moveName} in Pokemon Champions; this matchup cannot happen in a real battle.`,
           );

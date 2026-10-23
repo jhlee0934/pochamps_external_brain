@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getRanking, getUsage, ko, usageKey } from '../lib/data';
-import { bestMove, calcMoves, koTextKo, type MoveResult } from '../lib/calc';
-import { useBatch, useStoredState } from '../lib/hooks';
+import { ko } from '../lib/data';
+import { koTextKo, type MoveResult } from '../lib/calc';
+import { useStoredState } from '../lib/hooks';
 import { withRo } from '../lib/korean';
 import { useParty } from '../lib/party';
-import { metaVariants, targetKey } from '../lib/meta';
+import { loadMetaTargets } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, type PokemonSet } from '../lib/sets';
+import { useWorkerJob } from '../lib/workerJob';
+import type { BenchmarkRequest, BenchmarkResult } from '../workers/benchmark.worker';
 import { Card, Segmented, Sprite } from '../components/ui';
 
 interface Row {
@@ -34,6 +36,9 @@ function verdict(my: MoveResult | undefined, their: MoveResult | undefined, mySp
 
 const VERDICT_LABEL = { good: '유리', even: '호각', bad: '불리' };
 
+// The same worker as the party page's spread insights: my best move and theirs, per meta form.
+const createWorker = () => new Worker(new URL('../workers/benchmark.worker.ts', import.meta.url), { type: 'module' });
+
 function Hit({ r }: { r: MoveResult | undefined }) {
   if (!r) return <span className="muted">공격 기술 없음</span>;
   return (
@@ -51,52 +56,51 @@ export function MatchupPage() {
   const navigate = useNavigate();
   const [index, setIndex] = useStoredState('pochamps.matchup.member', 0);
   const [count, setCount] = useStoredState<'20' | '30' | '50'>('pochamps.matchup.count', '30');
-  const [rows, setRows] = useState<Row[] | null>(null);
-  // The member the shown results were calculated for; picking another one doesn't relabel them.
-  const [computedFor, setComputedFor] = useState<PokemonSet | null>(null);
-  const [error, setError] = useState('');
-  const { run, progress } = useBatch();
+  // Set by the button; the worker runs whenever it changes. Results stay tied to job.me, so
+  // picking another member doesn't relabel them.
+  const [job, setJob] = useState<BenchmarkRequest | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const { output, outputFor, pending, error: workerError } = useWorkerJob<BenchmarkRequest, BenchmarkResult>(createWorker, job);
   const me = members[Math.min(index, members.length - 1)];
+  const computedFor = outputFor?.me ?? null;
+  const error = loadError || workerError;
 
   const start = async () => {
     if (!me) return;
-    setError('');
-    setRows(null);
+    setLoadError('');
+    setLoading(true);
     try {
-      const { entries } = await getRanking('Singles');
-      const top = entries.slice(0, Number(count));
-      const mySpeed = effectiveSpeed(me) ?? 0;
-      const out = await run(top, async (e): Promise<Row[]> => {
-        let variants;
-        try {
-          variants = metaVariants(e.pokemon, await getUsage(usageKey(e.pokemon)));
-        } catch {
-          return [];
-        }
-        // One row per form, so Mega Charizard X and Y are judged separately.
-        return variants.map(({ set, share }) => {
-          const offense = bestMove(calcMoves(me, {}, set, {}));
-          const defense = bestMove(calcMoves(set, {}, me, {}));
-          const theirSpeed = effectiveSpeed(set) ?? 0;
-          return {
-            key: targetKey(e.rank, set),
-            rank: e.rank,
-            set,
-            share,
-            offense,
-            defense,
-            mySpeed,
-            theirSpeed,
-            verdict: verdict(offense, defense, mySpeed, theirSpeed),
-          };
-        });
-      });
-      setRows(out.flat());
-      setComputedFor(me);
+      // One target per form, so Mega Charizard X and Y are judged separately.
+      setJob({ me, targets: await loadMetaTargets(Number(count)) });
     } catch (e) {
-      setError((e as Error).message);
+      setLoadError((e as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const rows = useMemo<Row[] | null>(() => {
+    if (!output || !outputFor) return null;
+    const mySpeed = effectiveSpeed(outputFor.me) ?? 0;
+    const results = new Map(output.map((r) => [r.key, r]));
+    return outputFor.targets.map((t) => {
+      const { offense, defense } = results.get(t.key) ?? {};
+      const theirSpeed = effectiveSpeed(t.set) ?? 0;
+      return {
+        key: t.key,
+        rank: t.rank,
+        set: t.set,
+        share: t.share,
+        offense,
+        defense,
+        mySpeed,
+        theirSpeed,
+        verdict: verdict(offense, defense, mySpeed, theirSpeed),
+      };
+    });
+  }, [output, outputFor]);
+  const busy = loading || pending;
 
   const summary = rows && {
     good: rows.filter((r) => r.verdict === 'good').length,
@@ -148,8 +152,8 @@ export function MatchupPage() {
                   { value: '50', label: '상위 50' },
                 ]}
               />
-              <button type="button" className="btn btn-primary" onClick={start} disabled={!!progress}>
-                {progress ? `계산 중 ${progress.done}/${progress.total}` : '계산하기'}
+              <button type="button" className="btn btn-primary" onClick={start} disabled={busy}>
+                {loading ? '메타 샘플 불러오는 중…' : pending ? '계산 중…' : '계산하기'}
               </button>
             </div>
           </div>
