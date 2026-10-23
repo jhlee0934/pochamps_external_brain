@@ -1,0 +1,15 @@
+{
+  "species": {
+    "aegislashboth": "킬가르도",
+    "aegislashshield": "킬가르도(실드폼)",
+    "floettemega": "메가플라엣테",
+    "basculegionf": "대쓰여너(암컷의 모습)",
+    "palafinhero": "돌핀맨(마이티폼)",
+    "taurospaldeacombat": "켄타로스(팔데아 컴뱃종)",
+    "taurospaldeablaze": "켄타로스(팔데아 블레이즈종)",
+    "taurospaldeaaqua": "켄타로스(팔데아 워터종)"
+  },
+  "items": {
+    "leek": "대파"
+  }
+}
