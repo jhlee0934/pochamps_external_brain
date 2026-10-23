@@ -1,11 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CONDITIONAL_DOUBLE, LAST_RESPECTS_DEFAULT_FAINTED, type Stacks } from '@shared/calc/champions';
-import { categoryKo, ko, toID } from '../lib/data';
+import { categoryKo, getUsage, ko, toID, usageKey } from '../lib/data';
 import { autoWeather, battleAbility, calcMoves, koTextKo, type AutoWeather, type CalcField, type FieldInput } from '../lib/calc';
 import { useStoredState } from '../lib/hooks';
 import { useParty } from '../lib/party';
-import { isMegaForm, megaForm, newSet, normalizeSet, STAT_LABEL, type PokemonSet, type SideExtras } from '../lib/sets';
+import { commonSet, isMegaForm, megaForm, newSet, normalizeSet, STAT_LABEL, type PokemonSet, type SideExtras } from '../lib/sets';
 import { MetaCoverage } from '../components/MetaCoverage';
 import { SetEditor, SetHeader, useSetFiller } from '../components/SetEditor';
 import { Card, TypeBadge } from '../components/ui';
@@ -27,6 +27,12 @@ const initial: CalcState = {
   field: {},
   isCrit: false,
 };
+
+// Also recognizes empty defaults saved by versions that did not load initial usage.
+function isEmptyDefault(set: PokemonSet, side: 'attacker' | 'defender') {
+  return set.species === initial[side].species && !set.item && !set.ability && !set.nature &&
+    set.moves.every((move) => !move) && Object.values(set.sp).every((points) => points === 0);
+}
 
 const BOOST_STATS = ['atk', 'def', 'spa', 'spd', 'spe'] as const;
 const STATUS: { value: string; label: string }[] = [
@@ -220,6 +226,31 @@ export function CalcPage() {
   const [state, setState] = useStoredState<CalcState>('pochamps.calc.v1', initial);
   const location = useLocation();
   const navigate = useNavigate();
+  const [initialSetError, setInitialSetError] = useState('');
+
+  // Initial examples need the same usage fill as a species chosen in the picker.
+  // Keep the original object reference so a late response cannot replace user edits.
+  useEffect(() => {
+    let active = true;
+    const incoming = location.state as Partial<Pick<CalcState, 'attacker' | 'defender'>> | null;
+    for (const side of ['attacker', 'defender'] as const) {
+      const original = state[side];
+      if (incoming?.[side] || !isEmptyDefault(original, side)) continue;
+      void getUsage(usageKey(original.species)).then(
+        (usage) => {
+          if (!active) return;
+          const filled = commonSet(original.species, usage);
+          setState((current) => current[side] === original ? { ...current, [side]: filled } : current);
+        },
+        () => {
+          if (active) setInitialSetError('기본 인기 세팅을 불러오지 못했습니다. 아래 세부 설정의 “사용률 1위 세팅으로 되돌리기”로 다시 시도해 주세요.');
+        },
+      );
+    }
+    return () => { active = false; };
+    // Only initialize on entry. Later selections and edits are handled by the set editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setState]);
 
   // Sets handed over from other pages (Pokemon detail, party, matchup).
   useEffect(() => {
@@ -272,6 +303,7 @@ export function CalcPage() {
       </div>
 
       <Card className="matchup-bar">
+        {initialSetError && <p className="error-note" role="status">{initialSetError}</p>}
         <div className="matchup-sides">
           <SidePicker title="공격 측" set={state.attacker} onChange={setAttacker} />
           <button
