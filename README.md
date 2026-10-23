@@ -17,7 +17,30 @@ server/            MCP 서버 (TypeScript, Streamable HTTP, stateless)
     server.ts        McpServer + 사용 지침(instructions)
     index.ts         HTTP 진입점, 비밀 경로, rate limit
   scripts/smoke.ts   실행 중인 서버 대상 E2E 확인
+web/               웹 앱 (Vite + React). 계산·데이터·한국어 이름은 server/src 모듈을 그대로 공유
 ```
+
+## 웹 앱
+
+```bash
+cd web
+npm install
+npm run dev     # http://localhost:5173
+```
+
+서버 없이 브라우저만으로 동작합니다(배틀 데이터 API는 CORS 허용, 데미지 계산은 브라우저에서 실행).
+파티와 계산기 입력값은 브라우저 localStorage에만 저장됩니다.
+
+| 화면 | 기능 |
+|---|---|
+| 메타 | 싱글/더블 사용률 순위, 검색, 타입 필터 |
+| 포켓몬 상세 | 종족값, 기술·도구·특성·성격·SP 배분·동반 포켓몬, 31일 순위 추이, 파티 추가, 계산기로 보내기 |
+| 내 파티 | 여러 파티 관리, 세트 편집(SP 66/32 검증, 배울 수 있는 기술만), 사용률 1위 세팅 채우기, Showdown 형식 가져오기/내보내기(한국어 이름 가능), 타입 상성표, 메타 상위 30 대비 스피드 라인 |
+| 결정력 계산 | 기술 4개 동시 계산, 반대 방향 결과, 메가진화 토글, 랭크·상태이상·남은 HP, 날씨·필드·벽·스텔스록·압정(1~3단)·급소 토글. 방어 측을 정하지 않아도 기술별로 메타 상위 30/50/100마리를 몇 타에 잡는지와 결정력 수치 표시 |
+| 대면표 | 내 포켓몬 1마리 vs 메타 상위 20/30/50의 최고 화력·스피드·유불리 판정 |
+
+스프라이트는 [PokeAPI/sprites](https://github.com/PokeAPI/sprites)를 특정 커밋으로 고정해 jsDelivr에서 불러옵니다
+(목록은 챔피언스 아이콘, 상세는 HOME 이미지). ID 매핑은 `server/src/data/pokeapi-ids.json`이며 `npm run build:ko`가 함께 만듭니다.
 
 ### 도구
 

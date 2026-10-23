@@ -67,14 +67,38 @@ const sideSchema = z.object({
     .optional(),
   status: z.enum(['brn', 'par', 'psn', 'tox', 'slp', 'frz']).optional(),
   curHpPercent: z.number().min(1).max(100).optional(),
+  stacks: z
+    .object({
+      hitsTaken: z.number().int().min(0).max(6).describe('Times hit so far (Rage Fist)'),
+      alliesFainted: z
+        .number()
+        .int()
+        .min(0)
+        .max(5)
+        .describe('Fainted allies (Last Respects defaults to 2 = power 150; Supreme Overlord defaults to 0)'),
+      metronomeUses: z.number().int().min(0).max(5).describe('Consecutive uses holding Metronome'),
+      conditionMet: z
+        .boolean()
+        .describe('Power-doubling condition met (Stomping Tantrum, Temper Flare, Avalanche, Payback, Assurance)'),
+    })
+    .partial()
+    .optional()
+    .describe('Battle-state stacks, used when this side attacks'),
 });
 
 type SideArgs = z.infer<typeof sideSchema>;
 
-// Ladder data is keyed by base species (megas share the base entry).
+// "Charizard-Mega-Y" -> "Charizard", "Meowstic-F-Mega" -> "Meowstic-F", "Floette-Mega" -> "Floette-Eternal".
+function megaBaseName(name: string, baseSpecies?: string): string {
+  if (!name.includes('-Mega')) return name;
+  const prefix = name.split('-Mega')[0].replace(/-M$/, ''); // Meowstic-M-Mega: the male form is the plain one
+  return baseSpecies?.startsWith(prefix) ? baseSpecies : prefix;
+}
+
+// Megas share their base Pokemon's ladder entry; other forms (Rotom-Wash, Raichu-Alola) have their own.
 function usageKey(name: string): string {
   const species = gen.species.get(toID(name));
-  return toID(species?.baseSpecies ?? species?.name ?? name);
+  return toID(species ? megaBaseName(species.name, species.baseSpecies) : name);
 }
 
 async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side: SideInput; filled: string[] }> {
@@ -253,6 +277,10 @@ export function registerTools(server: McpServer): void {
             defenderReflect: z.boolean().optional(),
             defenderLightScreen: z.boolean().optional(),
             defenderStealthRock: z.boolean().optional().describe('Include Stealth Rock damage in KO chance'),
+            defenderSpikes: z
+              .union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)])
+              .optional()
+              .describe('Spikes layers on the defender side, included in KO chance'),
           })
           .optional(),
       },

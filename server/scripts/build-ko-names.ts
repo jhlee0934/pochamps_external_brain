@@ -8,6 +8,9 @@ const CSV_BASE = 'https://raw.githubusercontent.com/PokeAPI/pokeapi/master/data/
 const KO = '3'; // languages.csv id for "ko"
 const OUT = new URL('../src/data/ko-names.json', import.meta.url);
 const OVERRIDES = new URL('../src/data/ko-overrides.json', import.meta.url);
+const IDS_OUT = new URL('../src/data/pokeapi-ids.json', import.meta.url);
+const CHAMPIONS_SPRITES =
+  'https://api.github.com/repos/PokeAPI/sprites/contents/sprites/pokemon/versions/generation-ix/champions';
 
 const gen = Generations.get(0);
 
@@ -68,7 +71,7 @@ const REGIONS: Record<string, string> = { Alola: '알로라', Galar: '가라르'
 
 // Smogon form ids differ from PokeAPI's (Meowstic-F vs meowstic-female, Tauros-Paldea-Aqua vs
 // tauros-paldea-aqua-breed), so try a few spellings before giving up.
-function findForm(id: string, forms: Map<string, { full: string; form: string }>) {
+function findForm<T>(id: string, forms: Map<string, T>): T | undefined {
   const candidates = [id, id.replace(/f$/, 'female').replace(/fmega$/, 'femalemega'), id.replace(/m$/, 'male')];
   for (const c of candidates) if (forms.has(c)) return forms.get(c);
   for (const [ident, v] of forms) if (ident.startsWith(id)) return v;
@@ -140,3 +143,25 @@ const result = {
 
 writeFileSync(OUT, JSON.stringify(result, null, 1) + '\n');
 console.log('wrote', OUT.pathname);
+
+// PokeAPI pokemon ids, used by the web app to build sprite URLs.
+const pokemonRows = await csv('pokemon');
+const pokemonIds = new Map(pokemonRows.map((r) => [toID(r.identifier), Number(r.id)]));
+const spriteIds: Record<string, number> = {};
+const noSprite: string[] = [];
+for (const s of gen.species) {
+  const sp = gen.species.get(s.id)!;
+  const id = findForm(s.id, pokemonIds) ?? pokemonIds.get(toID(sp.baseSpecies ?? sp.name.split('-')[0]));
+  if (id) spriteIds[s.id] = id;
+  else noSprite.push(s.name);
+}
+const listing = (await (await fetch(CHAMPIONS_SPRITES)).json()) as Array<{ name: string }>;
+const championsSprites = listing
+  .map((f) => /^(\d+)\.webp$/.exec(f.name)?.[1])
+  .filter((n): n is string => !!n)
+  .map(Number)
+  .sort((a, b) => a - b);
+console.log(`sprites: ${Object.keys(spriteIds).length} mapped, ${noSprite.length} missing`, noSprite.join(', '));
+console.log(`champions sprite files: ${championsSprites.length}`);
+writeFileSync(IDS_OUT, JSON.stringify({ pokemon: spriteIds, championsSprites }) + '\n');
+console.log('wrote', IDS_OUT.pathname);

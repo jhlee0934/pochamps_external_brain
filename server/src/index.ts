@@ -3,7 +3,14 @@
 import express, { type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { config } from './config.js';
+import { configureBattleData } from './data/battleData.js';
 import { createServer } from './server.js';
+
+configureBattleData({
+  baseUrl: config.battleDataBaseUrl,
+  cacheTtlMs: config.cacheTtlMs,
+  headers: { 'user-agent': 'pochamps-mcp (personal, non-commercial)' },
+});
 
 if (config.mcpPathSecret.length < 16) {
   console.error('MCP_PATH_SECRET must be set (16+ chars). It is the only access control.');

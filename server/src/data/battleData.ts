@@ -1,7 +1,16 @@
-// Adapter for the championsbattledata.com public API.
+// Adapter for the championsbattledata.com public API, shared by the MCP server and the web app.
 // API rules allow reasonable caching but not a permanent mirror, so responses
 // live only in an in-memory TTL cache and are never written to disk.
-import { config } from '../config.js';
+
+const settings = {
+  baseUrl: 'https://championsbattledata.com',
+  cacheTtlMs: 6 * 60 * 60_000,
+  headers: {} as Record<string, string>,
+};
+
+export function configureBattleData(options: Partial<typeof settings>): void {
+  Object.assign(settings, options);
+}
 
 export type Format = 'Singles' | 'Doubles';
 
@@ -66,19 +75,20 @@ export interface UsageSummary {
   teammates: string[];
 }
 
-const cache = new Map<string, { at: number; value: unknown }>();
+// Caches the in-flight promise so concurrent callers share one request.
+const cache = new Map<string, { at: number; value: Promise<unknown> }>();
 
-async function getJson<T>(path: string): Promise<T> {
+function getJson<T>(path: string): Promise<T> {
   const hit = cache.get(path);
-  if (hit && Date.now() - hit.at < config.cacheTtlMs) return hit.value as T;
+  if (hit && Date.now() - hit.at < settings.cacheTtlMs) return hit.value as Promise<T>;
 
-  const res = await fetch(config.battleDataBaseUrl + path, {
-    headers: { 'user-agent': 'pochamps-mcp (personal, non-commercial)' },
+  const value = fetch(settings.baseUrl + path, { headers: settings.headers }).then((res) => {
+    if (res.status === 404) throw new NotFoundError(path);
+    if (!res.ok) throw new Error(`battle data request failed: ${res.status} ${path}`);
+    return res.json() as Promise<T>;
   });
-  if (res.status === 404) throw new NotFoundError(path);
-  if (!res.ok) throw new Error(`battle data request failed: ${res.status} ${path}`);
-  const value = (await res.json()) as T;
   cache.set(path, { at: Date.now(), value });
+  value.catch(() => cache.delete(path));
   return value;
 }
 

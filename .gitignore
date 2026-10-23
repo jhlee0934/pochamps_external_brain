@@ -222,3 +222,5 @@ __marimo__/
 # Node
 node_modules/
 .cache/
+# The Python template above ignores every lib/; the web app's source lives in one.
+!web/src/lib/
