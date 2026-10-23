@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getRanking, ko, toID, type Format } from '../lib/data';
 import { useAsync, useStoredState } from '../lib/hooks';
 import { TYPES } from '../lib/typechart';
@@ -8,10 +8,31 @@ import { Card, ErrorNote, Loading, Segmented, Sprite, TypeBadge, Types } from '.
 const PAGE = 50;
 
 export function MetaPage() {
-  const [format, setFormat] = useStoredState<Format>('pochamps.meta.format', 'Singles');
+  const [params, setParams] = useSearchParams();
+  const [storedFormat, setStoredFormat] = useStoredState<Format>('pochamps.meta.format', 'Singles');
+  const requestedFormat = params.get('format');
+  const format = requestedFormat === 'Singles' || requestedFormat === 'Doubles' ? requestedFormat : storedFormat;
   const [query, setQuery] = useState('');
-  const [type, setType] = useState('');
+  const type = TYPES.find((t) => t === params.get('type')) ?? '';
   const [limit, setLimit] = useState(PAGE);
+  const setType = (next: string) => {
+    setParams((previous) => {
+      const updated = new URLSearchParams(previous);
+      if (next) updated.set('type', next);
+      else updated.delete('type');
+      return updated;
+    });
+    setLimit(PAGE);
+  };
+  const setFormat = (next: Format) => {
+    setStoredFormat(next);
+    setParams((previous) => {
+      const updated = new URLSearchParams(previous);
+      updated.set('format', next);
+      return updated;
+    });
+    setLimit(PAGE);
+  };
   const ranking = useAsync(() => getRanking(format), [format]);
 
   const rows = useMemo(() => {

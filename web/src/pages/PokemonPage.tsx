@@ -5,6 +5,7 @@ import { useAsync } from '../lib/hooks';
 import { useParty } from '../lib/party';
 import { commonSet, megaBase, megaLabel, megaOptions, STAT_LABEL, STATS } from '../lib/sets';
 import { Card, ErrorNote, Loading, PctBar, Sprite, Types } from '../components/ui';
+import { DefensiveMatchups } from '../components/DefensiveMatchups';
 
 function UsageList({ title, kind, entries }: { title: string; kind: Kind; entries: { name: string; pct: number | null }[] }) {
   return (
@@ -155,6 +156,8 @@ export function PokemonPage() {
           </ul>
         </Card>
       )}
+
+      {species && <DefensiveMatchups key={name} species={name} usage={usage.data?.showdownId === usageKey(name) && usage.data.format === format ? usage.data : undefined} format={format} />}
 
       {usage.loading && !usage.data && <Loading />}
       {usage.error && <p className="muted">이 포켓몬은 {format === 'Singles' ? '싱글' : '더블'} 래더 데이터가 없습니다.</p>}

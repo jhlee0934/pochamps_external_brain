@@ -5,20 +5,20 @@ export const TYPES = [...gen.types].map((t) => t.name).filter((t) => t !== '???'
 // Abilities that change how a type hits this Pokemon.
 const ABILITY_MODS: Record<string, Record<string, number>> = {
   levitate: { Ground: 0 },
+  eelevate: { Ground: 0 },
   eartheater: { Ground: 0 },
   waterabsorb: { Water: 0 },
-  stormdrain: { Water: 0 },
   dryskin: { Water: 0, Fire: 1.25 },
   voltabsorb: { Electric: 0 },
   lightningrod: { Electric: 0 },
   motordrive: { Electric: 0 },
   flashfire: { Fire: 0 },
-  wellbakedbody: { Fire: 0 },
   sapsipper: { Grass: 0 },
   thickfat: { Fire: 0.5, Ice: 0.5 },
   heatproof: { Fire: 0.5 },
   waterbubble: { Fire: 0.5 },
   purifyingsalt: { Ghost: 0.5 },
+  fluffy: { Fire: 2 },
 };
 
 export function multiplier(attackType: string, defenderTypes: string[], ability?: string): number {
@@ -26,7 +26,9 @@ export function multiplier(attackType: string, defenderTypes: string[], ability?
   let m = 1;
   for (const t of defenderTypes) m *= chart?.[t] ?? 1;
   const mod = ability ? ABILITY_MODS[toID(ability)]?.[attackType] : undefined;
-  return mod === undefined ? m : m * mod;
+  m = mod === undefined ? m : m * mod;
+  if (m > 1 && ['filter', 'solidrock'].includes(toID(ability ?? ''))) m *= 0.75;
+  return m;
 }
 
 export function multiplierLabel(m: number): string {
