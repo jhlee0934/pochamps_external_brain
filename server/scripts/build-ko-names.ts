@@ -67,6 +67,9 @@ async function formNames() {
   return out;
 }
 
+// Forms that fell back to an English label; each needs an entry in ko-overrides.json.
+const englishFallbacks: string[] = [];
+
 const REGIONS: Record<string, string> = { Alola: '알로라', Galar: '가라르', Hisui: '히스이', Paldea: '팔데아' };
 
 // Smogon form ids differ from PokeAPI's (Meowstic-F vs meowstic-female, Tauros-Paldea-Aqua vs
@@ -99,7 +102,9 @@ function speciesKo(
   if (form?.form) return form.form.includes(baseKo) ? form.form : `${baseKo}(${form.form})`;
   const region = REGIONS[forme];
   if (region) return `${baseKo}(${region}의 모습)`;
-  // No Korean form label anywhere: keep the English form name so forms stay distinguishable.
+  // No Korean form label anywhere: keep the English form name so forms stay distinguishable,
+  // and report it so the official Korean name gets added to ko-overrides.json.
+  englishFallbacks.push(sp.name);
   return `${baseKo}(${forme})`;
 }
 
@@ -141,6 +146,9 @@ const result = {
   types: pick('types', gen.types, (t) => types.get(t.id), overrides.types ?? {}),
 };
 
+if (englishFallbacks.length) {
+  console.log(`English form labels used (add Korean names to ko-overrides.json): ${englishFallbacks.join(', ')}`);
+}
 writeFileSync(OUT, JSON.stringify(result, null, 1) + '\n');
 console.log('wrote', OUT.pathname);
 

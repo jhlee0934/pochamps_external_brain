@@ -7,9 +7,19 @@
     "palafinhero": "돌핀맨(마이티폼)",
     "taurospaldeacombat": "켄타로스(팔데아 컴뱃종)",
     "taurospaldeablaze": "켄타로스(팔데아 블레이즈종)",
-    "taurospaldeaaqua": "켄타로스(팔데아 워터종)"
+    "taurospaldeaaqua": "켄타로스(팔데아 워터종)",
+    "mausholdfour": "파밀리쥐(네 식구)",
+    "polteageistantique": "포트데스(진작폼)",
+    "squawkabillyblue": "시비꼬(블루 페더)",
+    "squawkabillywhite": "시비꼬(화이트 페더)",
+    "squawkabillyyellow": "시비꼬(옐로 페더)"
   },
   "items": {
     "leek": "대파"
+  },
+  "abilities": {
+    "auraguard": "파동의방호",
+    "eelevate": "천정부지",
+    "firemane": "불꽃의갈기"
   }
 }

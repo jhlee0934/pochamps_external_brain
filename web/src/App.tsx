@@ -92,7 +92,7 @@ export function App() {
         <header className="topbar">
           <div className="topbar-inner">
             <NavLink to="/" className="brand">
-              <span className="brand-mark" aria-hidden />
+              <img className="brand-mark" src="/favicon.svg" alt="" width={26} height={26} />
               포챔스 외장두뇌
             </NavLink>
             <nav className="nav">
