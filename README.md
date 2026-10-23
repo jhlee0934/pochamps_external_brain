@@ -42,7 +42,18 @@ npm run dev     # http://localhost:5173
 스프라이트는 [PokeAPI/sprites](https://github.com/PokeAPI/sprites)를 특정 커밋으로 고정해 jsDelivr에서 불러옵니다
 (목록은 챔피언스 아이콘, 상세는 HOME 이미지). ID 매핑은 `server/src/data/pokeapi-ids.json`이며 `npm run build:ko`가 함께 만듭니다.
 
-### 도구
+### GitHub Pages 웹 배포
+
+1. GitHub 저장소의 **Settings → Pages → Build and deployment → Source**에서 **GitHub Actions**를 선택합니다.
+2. 배포 설정과 웹 변경을 `main`에 커밋·푸시합니다.
+3. **Actions → Deploy web to GitHub Pages** 실행이 끝나면 배포 URL을 엽니다. 수동 실행은 **Run workflow**를 사용합니다.
+
+현재 저장소의 기본 배포 주소는 `https://jhlee0934.github.io/pochamps_external_brain/`입니다.
+Pages에서는 새로고침을 지원하기 위해 `#/party`, `#/calc` 같은 해시 경로를 사용합니다. 로컬 개발은 기존 경로를 사용합니다.
+워크플로는 공유 모듈 때문에 server와 web의 의존성을 모두 설치하지만, 업로드하는 파일은 **web/dist만**입니다. MCP 서버와 `server/.env`는 배포하지 않습니다.
+기본 빌드 경로는 `/`이며 다른 호스팅으로 이전할 때 Pages 워크플로를 교체하면 됩니다.
+
+### MCP 도구
 
 | 이름 | 설명 |
 |---|---|

@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 const shared = fileURLToPath(new URL('../server/src', import.meta.url));
 
 export default defineConfig({
+  base: process.env.DEPLOY_BASE_PATH || '/',
   plugins: [react()],
   resolve: {
     alias: { '@shared': shared },
