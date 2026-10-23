@@ -1,131 +1,194 @@
-# pochamps
+<div align="center">
 
-포켓몬 챔피언스(싱글) 대전 보조 도구. 개인용·비상업 프로젝트입니다.
+# 포챔스 외장두뇌
 
-LLM 기능은 자체 API 호출 대신 **MCP 서버**로 제공하고, Claude / ChatGPT 구독에 커스텀 커넥터로 연결해서 씁니다.
-숫자(사용률, 데미지, 확정수)는 항상 도구가 계산하고, LLM은 해석과 설명만 합니다.
 
-## 구성
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-222222?style=flat-square)
 
-```
-server/            MCP 서버 (TypeScript, Streamable HTTP, stateless)
-  src/
-    config.ts        환경변수
-    data/battleData.ts  championsbattledata.com API 어댑터 (메모리 TTL 캐시)
-    calc/champions.ts   @smogon/calc Champions 모드(gen 0) 래퍼, SP 검증
-    tools.ts         MCP 도구 정의
-    server.ts        McpServer + 사용 지침(instructions)
-    index.ts         HTTP 진입점, 비밀 경로, rate limit
-  scripts/smoke.ts   실행 중인 서버 대상 E2E 확인
-web/               웹 앱 (Vite + React). 계산·데이터·한국어 이름은 server/src 모듈을 그대로 공유
-```
+[웹사이트](https://jhlee0934.github.io/pochamps_external_brain/) · [주요 기능](#주요-기능) · [로컬 실행](#로컬-실행) · [MCP 서버](#mcp-서버)
 
-## 웹 앱
+</div>
 
-```bash
-cd web
-npm install
-npm run dev     # http://localhost:5173
-```
+---
 
-서버 없이 브라우저만으로 동작합니다(배틀 데이터 API는 CORS 허용, 데미지 계산은 브라우저에서 실행).
-파티와 계산기 입력값은 브라우저 localStorage에만 저장됩니다.
+메타 순위와 인기 세팅을 살펴보고, 내 파티의 화력·내구·스피드를 비교합니다. 한국어 이름으로 검색하고 세팅을 편집할 수 있으며, 웹의 데미지 계산은 브라우저에서 실행합니다.
 
-| 화면 | 기능 |
-|---|---|
-| 메타 | 싱글/더블 사용률 순위, 검색, 타입 필터 |
-| 포켓몬 상세 | 종족값, 기술·도구·특성·성격·SP 배분·동반 포켓몬, 31일 순위 추이, 파티 추가, 계산기로 보내기 |
-| 내 파티 | 여러 파티 관리, 세트 편집(SP 66/32 검증, 배울 수 있는 기술만), 사용률 1위 세팅 채우기, Showdown 형식 가져오기/내보내기(한국어 이름 가능), 타입 상성표, 메타 상위 30 대비 스피드 라인 |
-| 결정력 계산 | 기술 4개 동시 계산, 반대 방향 결과, 메가진화 토글, 랭크·상태이상·남은 HP, 날씨·필드·벽·스텔스록·압정(1~3단)·급소 토글. 방어 측을 정하지 않아도 기술별로 메타 상위 30/50/100마리를 몇 타에 잡는지와 결정력 수치 표시 |
-| 대면표 | 내 포켓몬 1마리 vs 메타 상위 20/30/50의 최고 화력·스피드·유불리 판정 |
+웹은 MCP 서버 없이 사용할 수 있습니다. 파티와 계산기 입력값은 현재 브라우저의 **localStorage**에 저장됩니다.
 
-스프라이트는 [PokeAPI/sprites](https://github.com/PokeAPI/sprites)를 특정 커밋으로 고정해 jsDelivr에서 불러옵니다
-(목록은 챔피언스 아이콘, 상세는 HOME 이미지). ID 매핑은 `server/src/data/pokeapi-ids.json`이며 `npm run build:ko`가 함께 만듭니다.
+## 주요 기능
 
-### GitHub Pages 웹 배포
+| 화면 | 할 수 있는 일 |
+| :--- | :--- |
+| **메타** | 싱글·더블 순위 조회, 이름 검색, 타입 필터 |
+| **포켓몬 상세** | 종족값과 기술·도구·특성·성격·SP·동반 포켓몬 확인, 최근 31일 순위 추이, 파티 추가, 계산기로 보내기 |
+| **내 파티** | 여러 파티 관리, 세트 편집, 인기 세팅 채우기, Showdown 형식 가져오기·내보내기, 타입 상성표 |
+| **SP 배분 효과** | SP와 세팅을 바꿨을 때 메타 상대의 확정수·생존 여부·스피드 추월 변화 비교 |
+| **스피드 라인** | 메타 상위 30·50·100과 비교, 구애스카프·랭업기 세팅 추가 표시 |
+| **결정력 계산** | 기술 4개 동시 계산, 반대 방향 계산, 상대를 지정하지 않은 메타 상위 30·50·100 대상 공격 범위 비교 |
+| **대면표** | 내 포켓몬 한 마리와 메타 상위 20·30·50의 최고 화력·스피드·유불리 비교 |
 
-1. GitHub 저장소의 **Settings → Pages → Build and deployment → Source**에서 **GitHub Actions**를 선택합니다.
-2. 배포 설정과 웹 변경을 `main`에 커밋·푸시합니다.
-3. **Actions → Deploy web to GitHub Pages** 실행이 끝나면 배포 URL을 엽니다. 수동 실행은 **Run workflow**를 사용합니다.
+### 계산에 반영하는 조건
 
-현재 저장소의 기본 배포 주소는 `https://jhlee0934.github.io/pochamps_external_brain/`입니다.
-Pages에서는 새로고침을 지원하기 위해 `#/party`, `#/calc` 같은 해시 경로를 사용합니다. 로컬 개발은 기존 경로를 사용합니다.
-워크플로는 공유 모듈 때문에 server와 web의 의존성을 모두 설치하지만, 업로드하는 파일은 **web/dist만**입니다. MCP 서버와 `server/.env`는 배포하지 않습니다.
-기본 빌드 경로는 `/`이며 다른 호스팅으로 이전할 때 Pages 워크플로를 교체하면 됩니다.
+- **기본 규칙** — 레벨 50, 개체값 31, SP는 능력치별 최대 32·합계 최대 66.
+- **포켓몬 상태** — 메가진화, 능력치 랭크, 상태이상, 남은 HP.
+- **배틀 환경** — 날씨, 필드, 리플렉터·빛의장막, 스텔스록, 압정 1~3단, 급소.
+- **스피드 비교** — 메타 기본 줄에서는 구애스카프 배율을 제외하고, 버튼을 켜면 스카프 착용 줄을 추가합니다. 내 파티의 장착 도구는 항상 반영합니다.
 
-### MCP 도구
+## 로컬 실행
 
-| 이름 | 설명 |
-|---|---|
-| `get_usage` | 포켓몬별 래더 사용률: 기술·도구·특성·성격·SP 배분·동반 포켓몬 (시즌 선택 가능) |
-| `get_meta_ranking` | 싱글/더블 사용률 순위(순위만, % 없음)와 포켓몬별 1위 기술·도구·특성·성격. 타입 필터, 페이징 |
-| `get_usage_trend` | 최근 N일(최대 31) 순위·채용률 추이. 스냅샷은 시즌 누적값이며 M6부터 존재 |
-| `calc_damage` | 챔피언스 규칙(Lv50, IV 31, SP)으로 데미지 범위·확정수 계산. `useCommonSet`으로 빠진 값을 사용률 1위로 채움(항목별 독립 선택이라 근사치). 배울 수 없는 기술이면 `warnings`에 표시 |
-
-모든 도구는 포켓몬·기술·도구·특성·성격·타입 이름을 **영어 또는 한국어**로 받습니다
-("메가한카리아스Z", "알로라 라이츄", "구애스카프", "명랑" 등). 결과에는 공식 한국어 이름이 `ko` 필드로 함께 들어갑니다.
-`calc_damage`의 확정수는 `koChance` 필드입니다.
-
-### 한국어 이름 사전
-
-`server/src/data/ko-names.json`은 [PokeAPI](https://github.com/PokeAPI/pokeapi) CSV에서 생성합니다.
-PokeAPI에 없는 이름은 `server/src/data/ko-overrides.json`에 직접 적습니다.
+**Node.js 24**와 npm을 기준으로 개발·빌드했습니다. 저장소 루트에서 실행합니다.
 
 ```bash
-cd server
-npm run build:ko
+npm ci --prefix server
+npm ci --prefix web
+npm run dev --prefix web
 ```
 
-챔피언스의 모든 포켓몬·기술·도구·특성·성격·타입이 한국어 이름을 가집니다. 챔피언스 신규 특성(파동의방호·천정부지·불꽃의갈기)과
-PokeAPI에 한국어 폼 이름이 없는 폼(시비꼬 페더, 파밀리쥐 네 식구, 포트데스 진작폼 등)은 `ko-overrides.json`에 적어 두었습니다.
-챔피언스 업데이트로 새 포켓몬·특성이 추가되면 `npm run build:ko`가 한국어 이름이 없는 항목과 영어 폼 이름을 임시로 붙인 폼을
-출력하니, 그 이름들을 `ko-overrides.json`에 추가하면 됩니다.
+웹 주소: **http://localhost:5173**
 
-### 데이터 한계
+웹이 `server/src`의 계산·데이터·한국어 이름 모듈을 공유하므로 두 디렉토리의 의존성을 모두 설치합니다. 웹만 사용할 때는 서버 실행이나 `.env` 설정이 필요하지 않습니다.
 
-- 포켓몬 자체의 사용률 %, 승률, 표본 수는 API에 없음 (순위만 제공)
-- 기술·도구·성격·SP는 각각 따로 집계되어 조합 정보가 없음
-- 메가진화 폼은 기본 포켓몬 데이터에 합산됨
-- API의 `baseStats`는 종족값이 아니라 Lv50·SP 0 실수치이므로 계산에는 쓰지 않음
-
-## 실행
+<details>
+<summary><strong>빌드 및 타입 검사</strong></summary>
 
 ```bash
-cd server
-npm install
-cp .env.example .env   # MCP_PATH_SECRET 채우기
-npm run dev            # 또는 npm run build && npm start
+npm run typecheck --prefix server
+npm run typecheck --prefix web
+npm run build --prefix web
 ```
 
-엔드포인트: `http://localhost:8787/mcp/<MCP_PATH_SECRET>`
+웹 빌드 결과는 `web/dist`에 생성됩니다.
 
-확인:
+</details>
+
+<details>
+<summary><strong>Windows에서 웹·MCP·터널 한 번에 실행</strong></summary>
+
+의존성 설치와 아래 MCP 환경변수 설정을 마친 뒤, Cloudflared가 설치된 환경에서 루트의 `start-dev.bat`를 실행합니다.
+
+웹 개발 서버, MCP 서버, Cloudflare 임시 터널을 별도 창에서 시작합니다. 사용 중인 포트와 실행 중인 터널은 건너뜁니다. 종료는 각 창에서 `Ctrl+C`를 누릅니다.
+
+사전 검사만 실행하려면:
+
+```bat
+start-dev.bat --check
+```
+
+임시 터널을 재시작하면 공개 주소가 바뀝니다.
+
+</details>
+
+## GitHub Pages 배포
+
+1. 저장소의 **Settings → Pages → Build and deployment → Source**에서 **GitHub Actions**를 선택합니다.
+2. 변경 사항을 `main`에 푸시합니다.
+3. **Actions → Deploy web to GitHub Pages**에서 배포 결과를 확인합니다. 수동 실행은 **Run workflow**를 사용합니다.
+
+배포 주소: https://jhlee0934.github.io/pochamps_external_brain/
+
+Pages 배포본은 `#/party`, `#/calc` 같은 해시 경로를 사용해 새로고침을 지원합니다. 워크플로는 **`web/dist`만** 업로드하며 MCP 서버와 `server/.env`는 배포하지 않습니다.
+
+## MCP 서버
+
+웹과 별도로 실행하는 TypeScript MCP 서버입니다. **Streamable HTTP·stateless** 방식으로 데이터 조회와 계산 도구를 제공합니다. 결과에는 한국어 이름을 포함하며, AI가 숫자를 추측하는 대신 도구 결과를 해석하도록 서버 지침을 제공합니다.
+
+| 도구 | 기능 |
+| :--- | :--- |
+| `get_usage` | 포켓몬별 기술·도구·특성·성격·SP·동반 포켓몬 조회, 시즌 선택 |
+| `get_meta_ranking` | 싱글·더블 순위와 인기 항목 조회, 타입 필터·페이징 |
+| `get_usage_trend` | 최근 최대 31일 순위·채용률 추이 조회 |
+| `calc_damage` | 데미지 범위·확정수 계산, 인기 세팅으로 생략값 채우기, 습득 불가 기술 경고 |
+
+포켓몬·기술·도구·특성·성격·타입 이름을 **한국어 또는 영어**로 입력할 수 있습니다. 한국어 이름은 결과의 `ko`, 확정수는 `koChance` 필드로 반환합니다.
+
+<details>
+<summary><strong>서버 실행 및 클라이언트 연결</strong></summary>
+
+`server/.env.example`을 `server/.env`로 복사하고 `MCP_PATH_SECRET`에 16자 이상의 비밀값을 설정합니다.
 
 ```bash
-npm run smoke -- http://localhost:8787/mcp/<MCP_PATH_SECRET>
+npm run dev --prefix server
 ```
 
-## Claude / ChatGPT 연결
+기본 엔드포인트:
 
-두 서비스 모두 **공개 HTTPS 주소**가 필요합니다. 로컬 개발 중에는 터널을 씁니다.
+```text
+http://localhost:8787/mcp/<MCP_PATH_SECRET>
+```
+
+실행 중인 서버의 도구 호출 확인:
+
+```bash
+npm run smoke --prefix server -- http://localhost:8787/mcp/<MCP_PATH_SECRET>
+```
+
+외부 원격 MCP 클라이언트에 연결할 때는 공개 HTTPS 주소를 사용합니다. 로컬 테스트용 터널:
 
 ```bash
 cloudflared tunnel --url http://localhost:8787
 ```
 
-연결 URL은 `https://<터널 주소>/mcp/<MCP_PATH_SECRET>` 입니다.
+클라이언트에 등록할 URL:
 
-- **Claude** (Pro/Max): 설정 → 커넥터 → 커스텀 커넥터 추가 → URL 입력, 인증 "No sign in"
-- **ChatGPT**: Plugins → `+` → *Add custom MCP server* → URL 입력, 인증 없음
-  (요금제에 따라 커스텀 MCP 서버 추가가 제한될 수 있음)
+```text
+https://<터널 주소>/mcp/<MCP_PATH_SECRET>
+```
 
-인증은 비밀 경로 하나뿐이므로 URL을 공유하지 마세요. 도구는 모두 읽기 전용입니다.
+현재 도구는 모두 읽기 전용이며 접근 제어는 비밀 경로를 사용합니다. 연결 URL과 `.env`는 공개하지 마세요.
 
-## 데이터 출처와 고지
+</details>
 
-- Battle data provided by [Pokemon Champions Battle Data](https://championsbattledata.com/).
-  [API 규칙](https://championsbattledata.com/api-rules/)에 따라 응답은 메모리에만 캐시하며 원본을 저장·재배포하지 않습니다.
-- 한국어 이름: [PokeAPI](https://github.com/PokeAPI/pokeapi)
-- 데미지 계산: [@smogon/calc](https://github.com/smogon/damage-calc) (MIT)
-- Pokémon 및 관련 명칭·이미지의 권리는 The Pokémon Company, Nintendo, Creatures, GAME FREAK에 있습니다.
-  본 프로젝트는 비공식 팬 프로젝트이며 이들과 관련이 없습니다.
+## 데이터 읽는 법
+
+- **순위와 사용률은 다릅니다.** API는 포켓몬 자체의 순위를 제공하며, 포켓몬별 사용률 %·승률·표본 수는 제공하지 않습니다.
+- **인기 항목은 각각 집계됩니다.** 기술·도구·성격·SP의 1위 항목을 합친 세팅은 실제 조합을 확인한 값이 아닌 근사치입니다.
+- **메가폼 데이터는 기본 포켓몬에 합산됩니다.** 여러 폼의 비교에는 도구 채용률을 활용합니다.
+- **일별 추이는 시즌 누적 스냅샷입니다.** 해당 날짜 하루만의 전적을 뜻하지 않습니다.
+- **파티 저장은 브라우저별입니다.** 다른 기기나 사이트 주소로 옮길 때는 파티 내보내기·가져오기를 사용하세요.
+
+## 프로젝트 구조
+
+```text
+pochamps/
+├─ web/                         React + Vite 웹 앱
+│  └─ src/
+│     ├─ pages/                 메타 · 상세 · 파티 · 계산기 · 대면표
+│     ├─ components/            세트 편집 · SP 비교 · 메타 공격 범위
+│     ├─ lib/                   파티 저장 · Showdown 변환 · UI 계산 로직
+│     └─ workers/               대량 계산용 Web Worker
+├─ server/
+│  ├─ src/
+│  │  ├─ calc/                  Champions 계산 · 메가폼 처리
+│  │  ├─ data/                  배틀 API · 한국어 이름 · 이미지 ID
+│  │  ├─ tools.ts               MCP 도구 정의
+│  │  └─ index.ts               HTTP 진입점 · 접근 제어 · 요청 제한
+│  └─ scripts/                  MCP 호출 확인 · 이름 사전 생성
+├─ .github/workflows/           웹 자동 배포
+└─ start-dev.bat                Windows 개발 실행 도우미
+```
+
+<details>
+<summary><strong>한국어 이름 및 이미지 매핑 갱신</strong></summary>
+
+```bash
+npm run build:ko --prefix server
+```
+
+PokeAPI CSV에서 `ko-names.json`과 `pokeapi-ids.json`을 생성합니다. 신규 특성이나 PokeAPI에 없는 한국어 폼 이름은 `server/src/data/ko-overrides.json`에서 보완합니다. 생성 시 출력되는 미등록 이름을 확인해 추가하세요.
+
+이미지는 [PokeAPI/sprites](https://github.com/PokeAPI/sprites)의 특정 커밋을 고정해 jsDelivr에서 불러옵니다. 목록에는 Champions 아이콘, 상세에는 HOME 이미지를 사용합니다.
+
+</details>
+
+## 출처
+
+- **배틀 데이터** — Battle data provided by [Pokémon Champions Battle Data](https://championsbattledata.com/). [API 규칙](https://championsbattledata.com/api-rules/)에 따라 응답은 메모리에 임시 캐시하며 원본을 영구 저장·재배포하지 않습니다.
+- **한국어 이름·이미지 공급 경로** — [PokéAPI](https://github.com/PokeAPI/pokeapi) · [PokeAPI/sprites](https://github.com/PokeAPI/sprites)
+- **데미지 계산** — [@smogon/calc](https://github.com/smogon/damage-calc) · MIT
+
+---
+
+포챔스 외장두뇌는 개인용·비상업 팬 프로젝트입니다. Pokémon 및 관련 명칭·이미지의 권리는 The Pokémon Company, Nintendo, Creatures, GAME FREAK에 있으며, 본 프로젝트는 이들과 관련이 없습니다.
