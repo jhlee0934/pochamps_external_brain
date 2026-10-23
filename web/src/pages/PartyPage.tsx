@@ -86,7 +86,6 @@ interface MetaSpeedRow {
   set: PokemonSet;
   /** Form share (mega stone usage) when the ladder entry has several forms. */
   share?: number;
-  scarfPct?: number | null;
   scarfRow?: { set: PokemonSet; pct: number | null };
   setups: { move: string; stages: number; pct: number | null }[];
 }
@@ -97,8 +96,8 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.speed.setup', []);
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.speed.count', '50');
   const targets = useAsync(() => loadMetaTargets(Number(count)), [count]);
-  // One row per form (Mega X / Mega Y / base) from the shared meta sample, plus a scarf row when a
-  // scarf is common and no form of that Pokemon already holds one.
+  // Base rows exclude Scarf, including when it is the most popular item.
+  // The toggle adds every Scarf row; setup rows use the same unscarfed base.
   const meta = useMemo(() => {
     if (!targets.data) return { data: undefined };
     const formsByRank = new Map<number, MetaTarget[]>();
@@ -114,15 +113,17 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
         .filter((m) => SPEED_SETUP[toID(m.name)] && (m.pct ?? 0) >= SETUP_MIN_PCT)
         .map((m) => ({ move: m.name, stages: SPEED_SETUP[toID(m.name)], pct: m.pct }));
       const hasScarf = forms.some((f) => f.set.item === SCARF);
-      forms.forEach((f, i) =>
+      forms.forEach((f, i) => {
+        const isScarf = f.set.item === SCARF;
         rows.push({
-          set: f.set,
+          set: isScarf ? { ...f.set, item: '' } : f.set,
           share: f.share,
-          scarfPct: f.set.item === SCARF ? scarf?.pct : undefined,
-          scarfRow: i === 0 && scarf && !hasScarf ? { set: { ...f.set, item: SCARF }, pct: scarf.pct } : undefined,
+          scarfRow: isScarf
+            ? { set: f.set, pct: usage.items.find((item) => item.name === SCARF)?.pct ?? null }
+            : i === 0 && scarf && !hasScarf ? { set: { ...f.set, item: SCARF }, pct: scarf.pct } : undefined,
           setups,
-        }),
-      );
+        });
+      });
     }
     return { data: rows };
   }, [targets.data]);
@@ -138,7 +139,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   const rows = useMemo(() => {
     const out: SpeedEntry[] = members.map((m) => ({ set: m, mine: true, speed: effectiveSpeed(m) ?? 0 }));
     for (const r of meta.data ?? []) {
-      out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set) ?? 0, scarfPct: r.scarfPct, share: r.share });
+      out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set) ?? 0, share: r.share });
       if (showScarf && r.scarfRow) {
         out.push({ set: r.scarfRow.set, mine: false, speed: effectiveSpeed(r.scarfRow.set) ?? 0, scarfPct: r.scarfRow.pct });
       }
@@ -150,7 +151,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
     return out.sort((a, b) => b.speed - a.speed);
   }, [members, meta.data, showScarf, setupOn]);
 
-  const scarfCount = (meta.data ?? []).filter((r) => r.scarfRow || r.scarfPct != null).length;
+  const scarfCount = (meta.data ?? []).filter((r) => r.scarfRow).length;
   const toggleSetup = (move: string) =>
     setSetupOn(setupOn.includes(move) ? setupOn.filter((m) => m !== move) : [...setupOn, move]);
 
@@ -223,8 +224,9 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
         ))}
       </ol>
       <p className="fine">
-        메타 포켓몬은 사용률 1위 성격·SP·도구 기준입니다. 구애스카프는 도구 상위 {SCARF_TOP}위 안이면서 채용률 {SCARF_MIN_PCT}% 이상,
-        랭업기는 기술 상위 {SETUP_TOP}위 안이면서 채용률 {SETUP_MIN_PCT}% 이상인 포켓몬만 한 줄 더 표시합니다(버튼 옆 숫자는 해당 마릿수,
+        메타 기본 줄은 사용률 1위 성격·SP·도구에서 구애스카프 배율을 제외한 스피드입니다. 구애스카프 버튼을 켜면 원래 스카프 세팅과
+        도구 상위 {SCARF_TOP}위 안이면서 채용률 {SCARF_MIN_PCT}% 이상인 스카프 세팅을 별도 줄로 표시합니다. 내 파티의 도구는 항상 반영합니다.
+        랭업기는 스카프 없이 기술을 1회 사용한 기준이며, 기술 상위 {SETUP_TOP}위 안이면서 채용률 {SETUP_MIN_PCT}% 이상인 포켓몬만 한 줄 더 표시합니다(버튼 옆 숫자는 해당 마릿수,
         줄 옆 숫자는 채용률). 랭업기는 1회 사용 기준이고, 날씨 특성·순풍 등은 반영하지 않았습니다.
       </p>
     </>
