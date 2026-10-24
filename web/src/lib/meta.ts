@@ -104,6 +104,21 @@ export function withBoosted(targets: MetaTarget[], moves: string[]): MetaTarget[
   ]);
 }
 
+/**
+ * Which comparison a target belongs in. A boosted copy only joins the comparisons its stages
+ * change: my attacks on it need its defenses changed (Iron Defense, Shell Smash), its attacks on
+ * me need its attacking stats changed (Swords Dance, Dragon Dance), speed needs Speed changed.
+ * Elsewhere it would repeat the plain target's numbers.
+ */
+export type BoostAspect = 'offense' | 'defense' | 'speed';
+const ASPECT_STATS: Record<BoostAspect, (keyof Boosts)[]> = {
+  offense: ['def', 'spd'],
+  defense: ['atk', 'spa'],
+  speed: ['spe'],
+};
+export const boostAffects = (t: { boosts?: Boosts }, aspect: BoostAspect) =>
+  !t.boosts || ASPECT_STATS[aspect].some((stat) => (t.boosts![stat] ?? 0) !== 0);
+
 /** "칼춤 후 (공격 +2)" style label for a boosted target, empty otherwise. */
 export const boostLabel = (t: { boosts?: Boosts; boost?: { move: string } }) =>
   t.boosts && t.boost ? `${ko('moves', t.boost.move)} 후 (${boostText(t.boosts)})` : '';

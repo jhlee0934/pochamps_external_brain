@@ -1,5 +1,5 @@
 import { movePowerOf, runCalc, type FieldInput } from '@shared/calc/champions';
-import { gen, toID } from './data';
+import { gen, ko, toID } from './data';
 import { battleSpecies, defaultAbility, toSide, type PokemonSet, type SideExtras } from './sets';
 
 /** Field settings in the web app; `autoWeather: false` turns off weather from abilities. */
@@ -180,4 +180,11 @@ export function movePower(
   } catch {
     return undefined;
   }
+}
+
+/** "아이언헤드 · 결정력 12,345 · 120.4–142.4%": the move, its 결정력 and the HP it takes. */
+export function hitSummary(r: Pick<MoveResult, 'move' | 'minPercent' | 'maxPercent'>, power?: number): string {
+  return [ko('moves', r.move), power ? `결정력 ${power.toLocaleString('ko-KR')}` : '', `${r.minPercent}–${r.maxPercent}%`]
+    .filter(Boolean)
+    .join(' · ');
 }

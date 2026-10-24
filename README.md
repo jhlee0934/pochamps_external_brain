@@ -52,13 +52,16 @@ npm run dev --prefix web
 웹이 `server/src`의 계산·데이터·한국어 이름 모듈을 공유하므로 두 디렉토리의 의존성을 모두 설치합니다. 웹만 사용할 때는 서버 실행이나 `.env` 설정이 필요하지 않습니다.
 
 <details>
-<summary><strong>빌드 및 타입 검사</strong></summary>
+<summary><strong>빌드·타입 검사·테스트</strong></summary>
 
 ```bash
 npm run typecheck --prefix server
 npm run typecheck --prefix web
+npm test --prefix web
 npm run build --prefix web
 ```
+
+`npm test`는 물리·특수형 세트 분리, 랭업 계산, 커스텀 샘플, 스피드 라인 묶음 같은 핵심 로직을 Vitest로 확인합니다. 배포 워크플로도 빌드 전에 테스트를 실행합니다.
 
 웹 빌드 결과는 `web/dist`에 생성됩니다.
 

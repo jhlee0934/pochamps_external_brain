@@ -4,7 +4,7 @@ import { gen, ko, toID } from '../lib/data';
 import { useStoredState } from '../lib/hooks';
 import { MAX_PARTIES, newParty, useParty } from '../lib/party';
 import { FORMAT_OPTIONS, roleLabel, setupsOf, SETUP_MIN_PCT, SETUP_TOP, useMetaFormat, useMetaTargets, type MetaTarget } from '../lib/meta';
-import { battleSpecies, effectiveSpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
+import { battleSpecies, effectiveSpeed, groupBySpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
 import { exportTeam, importTeam } from '../lib/showdown';
 import { multiplier, multiplierLabel, TYPES } from '../lib/typechart';
 import { SetEditor } from '../components/SetEditor';
@@ -93,9 +93,10 @@ interface MetaSpeedRow {
 
 function SpeedChip({ r }: { r: SpeedEntry }) {
   const scarf = toID(r.set.item) === 'choicescarf';
-  const kind = r.mine ? 'mine' : r.boost ? 'boost' : scarf ? 'scarf' : r.custom ? 'custom' : '';
+  // A custom scarf sample is both: dashed custom outline and scarf chip.
+  const kinds = [r.mine && 'mine', r.boost && 'boost', scarf && 'scarf', r.custom && 'custom'].filter(Boolean).join(' ');
   return (
-    <span className={`speed-mon ${kind}`}>
+    <span className={`speed-mon ${kinds}`}>
       <Sprite species={battleSpecies(r.set)} size={28} />
       <span>
         {ko('species', battleSpecies(r.set))}
@@ -143,7 +144,8 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
         .map((s) => ({ ...s, stages: SPEED_SETUP[toID(s.move)] }));
       const hasScarf = forms.some((f) => f.set.item === SCARF);
       forms.forEach((f, i) => {
-        const isScarf = f.set.item === SCARF;
+        // A custom sample keeps the item it was written with, Scarf included, whatever the toggle.
+        const isScarf = f.set.item === SCARF && !f.custom;
         rows.push({
           set: isScarf ? { ...f.set, item: '' } : f.set,
           share: f.share,
@@ -181,11 +183,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
         out.push({ ...base, set: r.set, speed: effectiveSpeed(r.set, true, s.stages) ?? 0, boost: s });
       }
     }
-    const bySpeed = new Map<number, SpeedEntry[]>();
-    for (const e of out) bySpeed.set(e.speed, [...(bySpeed.get(e.speed) ?? []), e]);
-    return [...bySpeed.entries()]
-      .sort((a, b) => b[0] - a[0])
-      .map(([speed, entries]) => ({ speed, entries: entries.sort((a, b) => Number(b.mine) - Number(a.mine)) }));
+    return groupBySpeed(out);
   }, [members, meta.data, showScarf, setupOn]);
 
   const scarfCount = (meta.data ?? []).filter((r) => r.scarfRow).length;

@@ -176,6 +176,29 @@ export const SPEED_SETUP: Record<string, number> = Object.fromEntries(
   Object.entries(SETUP_BOOSTS).flatMap(([id, b]) => ((b.spe ?? 0) > 0 ? [[id, b.spe!]] : [])),
 );
 
+/** Speed-line entries grouped per speed value, fastest first; my party leads each group. */
+export function groupBySpeed<T extends { speed: number; mine: boolean }>(entries: T[]): { speed: number; entries: T[] }[] {
+  const bySpeed = new Map<number, T[]>();
+  for (const e of entries) bySpeed.set(e.speed, [...(bySpeed.get(e.speed) ?? []), e]);
+  return [...bySpeed.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([speed, group]) => ({ speed, entries: [...group].sort((a, b) => Number(b.mine) - Number(a.mine)) }));
+}
+
+/** A set's own setup moves, in move-slot order. */
+export const setupMovesOf = (set: PokemonSet) => set.moves.filter((m) => m && SETUP_BOOSTS[toID(m)]);
+
+/** Stages after one use of each move, added up and kept within ±6. */
+export function combineBoosts(moves: string[]): Boosts {
+  const out: Boosts = {};
+  for (const m of moves) {
+    for (const [stat, n] of Object.entries(SETUP_BOOSTS[toID(m)] ?? {}) as [keyof Boosts, number][]) {
+      out[stat] = Math.max(-6, Math.min(6, (out[stat] ?? 0) + n));
+    }
+  }
+  return out;
+}
+
 /** "공격 +1 · 스피드 +1" style summary of a boost. */
 export function boostText(boosts: Boosts): string {
   return (Object.entries(boosts) as [Exclude<Stat, 'hp'>, number][])

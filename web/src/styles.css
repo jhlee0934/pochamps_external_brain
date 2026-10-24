@@ -1994,3 +1994,10 @@ a.mon-link:hover strong {
 .custom-sample-list li:last-child {
   border-bottom: 0;
 }
+
+/* Opponent setup toggles match the outline of the boosted icons they add. */
+.toggle-btn.opponent.active {
+  border-color: var(--boost);
+  background: var(--boost-weak);
+  color: var(--boost);
+}
