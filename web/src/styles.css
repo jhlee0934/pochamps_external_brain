@@ -392,16 +392,49 @@ ul.error-note {
   margin: 2px 0 0;
 }
 
+/* Buttons that wrap continue under the first button, not under the label: the row is indented by the
+   label column and the label is pulled back into it. */
 .toggle-row {
+  --toggle-label-width: 84px;
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  padding-left: calc(var(--toggle-label-width) + 6px);
 }
 
+.toggle-row > .toggle-label {
+  width: var(--toggle-label-width);
+  margin-left: calc(-1 * var(--toggle-label-width) - 6px);
+}
+
+/* A stack of toggle rows outside a field bar. */
+.toggle-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.toggle-rows:not(:empty) {
+  margin-bottom: 12px;
+}
+
+/* Phones: the label takes its own line so the buttons get the full width. */
+@media (max-width: 480px) {
+  .toggle-row {
+    padding-left: 0;
+  }
+
+  .toggle-row > .toggle-label {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* One width for every row label (the longest is "방어 측 랭업기"), so the buttons start in one column. */
 .toggle-label {
-  width: 52px;
+  width: 84px;
   flex: none;
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
@@ -583,6 +616,9 @@ ul.error-note {
   white-space: nowrap;
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 }
+
+a.type-link { text-decoration: none; }
+a.type-link:hover { filter: brightness(1.12); color: #fff; }
 
 .pct-bar {
   display: inline-block;
@@ -835,8 +871,6 @@ a.mon-link:hover strong {
 }
 
 .defensive-matchup-neutral { flex: 2 1 240px; }
-.defensive-type-link { display: inline-flex; text-decoration: none; border-radius: 6px; }
-.defensive-type-link:hover { filter: brightness(1.12); }
 
 .defensive-matchup-weak { background: var(--bad-weak); }
 .defensive-matchup-weak dt { color: var(--bad); }
@@ -1711,13 +1745,14 @@ a.mon-link:hover strong {
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 8px;
-  align-items: center;
+  align-items: start;
   margin-bottom: 4px;
 }
 
 .bench-label {
   font-size: 12px;
   font-weight: 700;
+  line-height: 28px;
 }
 
 .bench-label.good {
@@ -1772,6 +1807,24 @@ a.mon-link:hover strong {
   font-weight: 700;
   font-size: 12px;
   margin-right: 4px;
+}
+
+/* Icons on the left, the text wraps in its own column beside them. */
+.bench-edges.with-icons li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bench-edges.with-icons .bench-mons {
+  flex: none;
+}
+
+.bench-edges.labeled li {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
 }
 
 .speed-head {
@@ -2067,4 +2120,96 @@ a.mon-link:hover strong {
 
 .move-power strong {
   color: var(--text);
+}
+
+/* ---------- narrow screens: controls wrap instead of spilling or overlapping ---------- */
+.card-header {
+  flex-wrap: wrap;
+}
+
+.card-actions {
+  max-width: 100%;
+}
+
+/* A row of toggles next to a button (card actions, matchup controls) wraps as a whole. */
+.row.gap {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.segmented {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.segmented button {
+  white-space: nowrap;
+}
+
+/* ---------- text wrapping ---------- */
+/* Korean wraps between words, never inside one ("스톤에|지"); only a word too long for its line breaks. */
+body {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.move-head {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.move-head > strong,
+.move-head > .muted {
+  white-space: nowrap;
+}
+
+.move-head .ko-text {
+  margin-left: auto;
+  text-align: right;
+}
+
+.sp-head {
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.sp-head > span:first-child {
+  white-space: nowrap;
+}
+
+/* The matchup table scrolls sideways on phones instead of squeezing names to one letter per line. */
+.matchup-table {
+  min-width: 640px;
+}
+
+.matchup-table .mon-link strong {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  /* Every tab stays visible: the nav wraps rather than hiding the last tabs off-screen. */
+  .nav {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .nav a {
+    padding: 5px 10px;
+    font-size: 14px;
+  }
+  /* The chart scales down with the screen; bigger units keep its labels readable. */
+  .chart-label {
+    font-size: 20px;
+  }
+}
+
+/* Only phones need telling that a wide table scrolls sideways. */
+.scroll-hint {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .scroll-hint {
+    display: block;
+    margin: 0 0 6px;
+  }
 }

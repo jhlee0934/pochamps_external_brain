@@ -64,7 +64,7 @@ export function DefensiveMatchups({ species, usage, format = 'Singles' }: { spec
             const tone = value > 1 ? 'weak' : value === 0 ? 'immune' : value < 1 ? 'resist' : 'neutral';
             return <div key={value} className={`defensive-matchup defensive-matchup-${tone}`}>
               <dt>{value === 0 ? '무효' : `${multiplierLabel(value)}배${value > 1 ? ' 약점' : value < 1 ? ' 반감' : ''}`}</dt>
-              <dd>{attacks.map((type) => <Link key={type} to={`/?type=${encodeURIComponent(type)}&format=${format}`} className="defensive-type-link" aria-label={`${ko('types', type)} 타입 메타 보기`}><TypeBadge type={type} /></Link>)}</dd>
+              <dd>{attacks.map((type) => <TypeBadge key={type} type={type} format={format} />)}</dd>
             </div>;
           })}
         </dl>
@@ -87,7 +87,7 @@ export function DefensiveMatchups({ species, usage, format = 'Singles' }: { spec
             <summary><h3>{multiplierLabel(value)}배 약점 <span className="muted small">{threats.filter((row) => row.moves.some((move) => move.multiplier === value)).length}마리</span></h3></summary>
             <ul className="weakness-threat-list">{threats.filter((row) => row.moves.some((move) => move.multiplier === value)).map(({ target, moves }) => <li key={target.key}>
               <Link className="mon-link" to={`/pokemon/${encodeURIComponent(battleSpecies(target.set))}?format=${format}`}><span className="muted small">{target.rank}위</span><Sprite species={battleSpecies(target.set)} size={32} /><strong>{ko('species', battleSpecies(target.set))}</strong></Link>
-              <div className="weakness-moves">{moves.filter((move) => move.multiplier === value).map((move) => <span key={move.name} className="weakness-move"><TypeBadge type={move.type} /><span>{ko('moves', move.name)}</span><strong>{move.pct}%</strong></span>)}</div>
+              <div className="weakness-moves">{moves.filter((move) => move.multiplier === value).map((move) => <span key={move.name} className="weakness-move"><TypeBadge type={move.type} format={format} /><span>{ko('moves', move.name)}</span><strong>{move.pct}%</strong></span>)}</div>
             </li>)}</ul>
           </details>)}
           {!threats.length && <p className="muted empty">조회한 범위에서 조건에 맞는 약점 공격 기술이 없습니다.</p>}

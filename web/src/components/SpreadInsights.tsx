@@ -238,41 +238,43 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
         {formatKo(format)} 메타 상위 포켓몬의 인기 세팅(물리형·특수형별 인기 성격·SP·기술과 도구, 메가스톤이면 메가진화)을 샘플로, 지금 배분으로 누구를 잡고 누구의 공격을
         버티는지 보여줍니다. 기술·도구를 바꿔도 바로 다시 계산합니다. 포켓몬 상세에서 만든 커스텀 샘플도 함께 비교합니다.
       </p>
-      {mySetups.length > 0 && (
-        <div className="toggle-row">
-          <span className="toggle-label">내 랭업기</span>
-          {mySetups.map((move) => (
-            <button
-              type="button"
-              key={move}
-              className={myActive.includes(move) ? 'toggle-btn active mine' : 'toggle-btn mine'}
-              aria-pressed={myActive.includes(move)}
-              onClick={() => toggleMySetup(move)}
-              title={boostText(setupBoost(move)!)}
-            >
-              {setupName(move)}
-            </button>
-          ))}
-          {myActive.length > 0 && <span className="chip small accent">내 랭크 {boostText(myBoosts)}</span>}
-        </div>
-      )}
-      {setupMoves.length > 0 && (
-        <div className="toggle-row">
-          <span className="toggle-label">상대 랭업기</span>
-          {setupMoves.map(([move, n]) => (
-            <button
-              type="button"
-              key={move}
-              className={setupOn.includes(move) ? 'toggle-btn active opponent' : 'toggle-btn opponent'}
-              aria-pressed={setupOn.includes(move)}
-              onClick={() => toggleSetup(move)}
-              title={`${boostText(setupBoost(move)!)} · 해당 ${n}마리`}
-            >
-              {setupName(move)} <span className="auto-tag">{n}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="toggle-rows">
+        {mySetups.length > 0 && (
+          <div className="toggle-row">
+            <span className="toggle-label">내 랭업기</span>
+            {mySetups.map((move) => (
+              <button
+                type="button"
+                key={move}
+                className={myActive.includes(move) ? 'toggle-btn active mine' : 'toggle-btn mine'}
+                aria-pressed={myActive.includes(move)}
+                onClick={() => toggleMySetup(move)}
+                title={boostText(setupBoost(move)!)}
+              >
+                {setupName(move)}
+              </button>
+            ))}
+            {myActive.length > 0 && <span className="chip small accent">내 랭크 {boostText(myBoosts)}</span>}
+          </div>
+        )}
+        {setupMoves.length > 0 && (
+          <div className="toggle-row">
+            <span className="toggle-label">상대 랭업기</span>
+            {setupMoves.map(([move, n]) => (
+              <button
+                type="button"
+                key={move}
+                className={setupOn.includes(move) ? 'toggle-btn active opponent' : 'toggle-btn opponent'}
+                aria-pressed={setupOn.includes(move)}
+                onClick={() => toggleSetup(move)}
+                title={`${boostText(setupBoost(move)!)} · 해당 ${n}마리`}
+              >
+                {setupName(move)} <span className="auto-tag">{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {myActive.length > 0 && (
         <p className="fine">
           내 랭업기는 1회씩 사용한 랭크(여러 개면 합산, 최대 ±6)를 내 공격·내구·스피드 계산 전체에 적용합니다.
@@ -363,7 +365,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
               <span className="muted"> / {defRows.length}마리</span>
             </p>
             {(edgeSafe.length > 0 || edgeKo.length > 0) && (
-              <ul className="bench-edges">
+              <ul className="bench-edges labeled">
                 {edgeSafe.slice(0, 3).map((x) => (
                   <li key={`s${x.t.key}`}>
                     <span className="good">아슬아슬하게 버팀</span> {withNature(x.t)}의 {ko('moves', x.r.defense!.move)} 최대{' '}
@@ -386,26 +388,28 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
               샘플 {speedRows.length}마리 중 <strong>{faster}마리</strong>보다 빠름{ties > 0 && `, ${ties}마리와 동속`}
             </p>
             {nextSpeedTargets.length > 0 && (
-              <ul className="bench-edges">
+              <ul className="bench-edges with-icons">
                 {nextSpeedTargets.map((n) => (
                   <li key={n.speed}>
                     <span className="bench-mons inline">
                       {n.mons.slice(0, 4).map((t) => (
                         <MonIcon key={t.key} t={t} title={`스피드 ${n.speed}`} />
                       ))}
-                    </span>{' '}
-                    {n.mons.slice(0, 2).map(withNature).join(', ')}
-                    {n.mons.length > 2 && ` 외 ${n.mons.length - 2}`} ({n.speed}){' '}
-                    {n.sp === undefined ? (
-                      <span className="muted">— 스피드 SP로는 추월 불가</span>
-                    ) : (
-                      <>
-                        — 스피드 SP <strong>{n.sp}</strong>이면 추월
-                        {n.sp - set.sp.spe > spareSp && (
-                          <span className="muted"> (다른 스탯에서 {n.sp - set.sp.spe - spareSp} 줄여야 함)</span>
-                        )}
-                      </>
-                    )}
+                    </span>
+                    <span>
+                      {n.mons.slice(0, 2).map(withNature).join(', ')}
+                      {n.mons.length > 2 && ` 외 ${n.mons.length - 2}`} ({n.speed}){' '}
+                      {n.sp === undefined ? (
+                        <span className="muted">— 스피드 SP로는 추월 불가</span>
+                      ) : (
+                        <>
+                          — 스피드 SP <strong>{n.sp}</strong>이면 추월
+                          {n.sp - set.sp.spe > spareSp && (
+                            <span className="muted"> (다른 스탯에서 {n.sp - set.sp.spe - spareSp} 줄여야 함)</span>
+                          )}
+                        </>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>

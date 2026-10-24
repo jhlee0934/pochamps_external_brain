@@ -56,17 +56,33 @@ export const targetKey = (rank: number, set: PokemonSet, role?: Role) =>
 /** Most used sets (one per form and role) of the top ladder Pokemon; requests are cached by the data layer. */
 export async function loadMetaTargets(count: number, format: Format): Promise<MetaTarget[]> {
   const { entries } = await getRanking(format);
-  const lists = await Promise.all(
-    entries.slice(0, count).map(async (e) => {
-      try {
-        const usage = await getUsage(usageKey(e.pokemon), format);
-        return metaVariants(e.pokemon, usage).map((v) => ({ key: targetKey(e.rank, v.set, v.role), rank: e.rank, usage, ...v }));
-      } catch {
-        return [];
+  const lists = await mapLimited(entries.slice(0, count), LOAD_CONCURRENCY, async (e) => {
+    try {
+      const usage = await getUsage(usageKey(e.pokemon), format);
+      return metaVariants(e.pokemon, usage).map((v) => ({ key: targetKey(e.rank, v.set, v.role), rank: e.rank, usage, ...v }));
+    } catch {
+      return [];
+    }
+  });
+  return lists.flat();
+}
+
+// Usage requests in flight at once; the whole ladder is ~260 of them.
+const LOAD_CONCURRENCY = 6;
+
+/** `fn` over `items` with at most `limit` running at a time, results in input order. */
+export async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]);
       }
     }),
   );
-  return lists.flat();
+  return out;
 }
 
 /**

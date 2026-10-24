@@ -30,7 +30,8 @@ function RankChart({ points }: { points: { date: string; rank: number | null }[]
   if (data.length < 2) return <p className="muted">추이를 그릴 데이터가 부족합니다.</p>;
   const W = 600;
   const H = 160;
-  const pad = { l: 36, r: 12, t: 12, b: 24 };
+  // Room on the left for a three-digit rank label at the larger phone font size.
+  const pad = { l: 56, r: 12, t: 22, b: 28 };
   const ranks = data.map((d) => d.rank);
   const lo = Math.max(1, Math.min(...ranks) - 2);
   const hi = Math.max(...ranks) + 2;
@@ -111,7 +112,7 @@ export function PokemonPage() {
           </div>
           <h1>{ko('species', name)}</h1>
           <p className="en">{name}</p>
-          {species && <Types types={[...species.types]} />}
+          {species && <Types types={[...species.types]} format={format} />}
           {megas.length > 0 && (
             <nav className="mega-toggle" aria-label="폼 전환">
               {[{ mega: base, label: '기본' }, ...megas.map((m) => ({ mega: m.mega, label: `메가${megaLabel(m.mega) && ` ${megaLabel(m.mega)}`}` }))].map(

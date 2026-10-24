@@ -193,6 +193,7 @@ export function MatchupPage() {
             </span>
           }
         >
+          <p className="fine scroll-hint">표를 좌우로 밀면 내 화력·상대 화력·스피드를 볼 수 있습니다.</p>
           <div className="table-wrap">
             <table className="table matchup-table">
               <thead>

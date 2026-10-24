@@ -1,7 +1,7 @@
 import { Move } from '@smogon/calc';
 import { getMoveEffectiveness } from '@smogon/calc/dist/mechanics/util.js';
 import { gen, getRanking, getUsage, toID, usageKey, type Format, type UsageSummary } from './data';
-import { metaVariants, type MetaTarget, targetKey } from './meta';
+import { mapLimited, metaVariants, type MetaTarget, targetKey } from './meta';
 import { battleSpecies, defaultAbility } from './sets';
 import { multiplier } from './typechart';
 
@@ -9,30 +9,24 @@ import { multiplier } from './typechart';
 export async function loadWeaknessSample(count: number, format: Format) {
   const ranking = await getRanking(format);
   const entries = ranking.entries.slice(0, count);
-  const rows: MetaTarget[][] = new Array(entries.length);
-  let next = 0;
   let failed = 0;
-  await Promise.all(Array.from({ length: Math.min(4, entries.length) }, async () => {
-    while (next < entries.length) {
-      const index = next++;
-      const entry = entries[index];
-      try {
-        const usage = await getUsage(usageKey(entry.pokemon), format);
-        // Type matchups depend on the form, not on its physical/special build: one row per form.
-        const forms = new Map<string, ReturnType<typeof metaVariants>[number]>();
-        for (const variant of metaVariants(entry.pokemon, usage)) {
-          const form = battleSpecies(variant.set);
-          if (!forms.has(form)) forms.set(form, { ...variant, role: undefined });
-        }
-        rows[index] = [...forms.values()].map((variant) => ({
-          ...variant, rank: entry.rank, key: targetKey(entry.rank, variant.set), usage,
-        }));
-      } catch {
-        failed++;
-        rows[index] = [];
+  const rows = await mapLimited(entries, 4, async (entry): Promise<MetaTarget[]> => {
+    try {
+      const usage = await getUsage(usageKey(entry.pokemon), format);
+      // Type matchups depend on the form, not on its physical/special build: one row per form.
+      const forms = new Map<string, ReturnType<typeof metaVariants>[number]>();
+      for (const variant of metaVariants(entry.pokemon, usage)) {
+        const form = battleSpecies(variant.set);
+        if (!forms.has(form)) forms.set(form, { ...variant, role: undefined });
       }
+      return [...forms.values()].map((variant) => ({
+        ...variant, rank: entry.rank, key: targetKey(entry.rank, variant.set), usage,
+      }));
+    } catch {
+      failed++;
+      return [];
     }
-  }));
+  });
   return { targets: rows.flat(), failed, total: entries.length };
 }
 

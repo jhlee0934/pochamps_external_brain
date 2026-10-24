@@ -8,12 +8,14 @@ import { PokemonPage } from './pages/PokemonPage';
 import { PartyPage } from './pages/PartyPage';
 import { CalcPage } from './pages/CalcPage';
 import { MatchupPage } from './pages/MatchupPage';
+import { SpeedPage } from './pages/SpeedPage';
 
 const NAV = [
   { to: '/', label: '메타', end: true },
   { to: '/party', label: '내 파티' },
   { to: '/calc', label: '결정력 계산' },
   { to: '/matchup', label: '대면표' },
+  { to: '/speed', label: '스피드 라인' },
 ];
 
 function resolveCurrentId(s: PartyStore): string {
@@ -111,6 +113,7 @@ export function App() {
             <Route path="/party" element={<PartyPage />} />
             <Route path="/calc" element={<CalcPage />} />
             <Route path="/matchup" element={<MatchupPage />} />
+            <Route path="/speed" element={<SpeedPage />} />
           </Routes>
         </main>
         <footer className="footer">

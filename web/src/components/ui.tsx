@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import type { Format } from '../lib/data';
 import { ko, spriteUrl } from '../lib/data';
 import { TYPE_COLOR } from '../lib/typechart';
 
@@ -25,19 +27,40 @@ export function Sprite({ species, variant = 'icon', size = 40 }: { species: stri
   );
 }
 
-export function TypeBadge({ type }: { type: string }) {
+/** Meta ranking filtered by `type`; without a format the meta page keeps the stored one. */
+export const typeSearchUrl = (type: string, format?: Format) =>
+  `/?type=${encodeURIComponent(type)}${format ? `&format=${format}` : ''}`;
+
+/**
+ * A type badge links to the meta ranking filtered by that type. `link={false}` only where the badge
+ * already sits inside a control of its own (the meta page's type filter buttons).
+ */
+export function TypeBadge({ type, format, link = true }: { type: string; format?: Format; link?: boolean }) {
+  const style = { background: TYPE_COLOR[type] ?? 'var(--text-muted)' };
+  if (!link) {
+    return (
+      <span className="type-badge" style={style}>
+        {ko('types', type)}
+      </span>
+    );
+  }
   return (
-    <span className="type-badge" style={{ background: TYPE_COLOR[type] ?? 'var(--text-muted)' }}>
+    <Link
+      to={typeSearchUrl(type, format)}
+      className="type-badge type-link"
+      style={style}
+      title={`${ko('types', type)} 타입 메타 보기`}
+    >
       {ko('types', type)}
-    </span>
+    </Link>
   );
 }
 
-export function Types({ types }: { types: string[] }) {
+export function Types({ types, format }: { types: string[]; format?: Format }) {
   return (
     <span className="types">
       {types.map((t) => (
-        <TypeBadge key={t} type={t} />
+        <TypeBadge key={t} type={t} format={format} />
       ))}
     </span>
   );

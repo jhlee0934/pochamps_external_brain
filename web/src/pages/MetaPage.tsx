@@ -86,7 +86,7 @@ export function MetaPage() {
                 onClick={() => setType(type === t ? '' : t)}
                 aria-pressed={type === t}
               >
-                <TypeBadge type={t} />
+                <TypeBadge type={t} link={false} />
               </button>
             ))}
           </div>
@@ -123,7 +123,7 @@ export function MetaPage() {
                       </Link>
                     </td>
                     <td className="hide-sm">
-                      <Types types={e.types} />
+                      <Types types={e.types} format={format} />
                     </td>
                     <td>{ko('moves', e.topMove)}</td>
                     <td className="hide-sm">{ko('items', e.topItem)}</td>

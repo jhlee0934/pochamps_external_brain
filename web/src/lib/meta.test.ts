@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CUSTOM_RANK, customTargets } from './custom';
-import { boostAffects, metaVariants, rankLabel, setupMoveCounts, setupsOf, targetKey, withBoosted, type MetaTarget } from './meta';
+import { boostAffects, mapLimited, metaVariants, rankLabel, setupMoveCounts, setupsOf, targetKey, withBoosted, type MetaTarget } from './meta';
 import { MAX_PARTIES } from './party';
 import {
   activeSetups,
@@ -245,5 +245,21 @@ describe('magic numbers', () => {
     // Base Attack 84 vs 130 for Mega Charizard X: the bonus points land on different SP.
     const mega = { ...set('Charizard', []), nature: 'Adamant', item: 'Charizardite X' };
     expect(magicNumbers(mega, 'atk')).not.toEqual(magicNumbers(mega, 'atk', false));
+  });
+});
+
+describe('mapLimited', () => {
+  it('keeps input order and never runs more than the limit at once', async () => {
+    let running = 0;
+    let peak = 0;
+    const out = await mapLimited([5, 1, 4, 2, 3], 2, async (n) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, n));
+      running--;
+      return n * 10;
+    });
+    expect(out).toEqual([50, 10, 40, 20, 30]);
+    expect(peak).toBe(2);
   });
 });
