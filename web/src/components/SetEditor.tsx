@@ -29,6 +29,7 @@ import {
   type PokemonSet,
 } from '../lib/sets';
 import { Combobox } from './Combobox';
+import { SpreadPresets } from './SpreadPresets';
 import { Sprite, Types } from './ui';
 
 export function SpEditor({ set, onChange, mega = true }: { set: PokemonSet; onChange: (s: PokemonSet) => void; mega?: boolean }) {
@@ -191,12 +192,15 @@ export function SetEditor({
   onChange,
   title,
   showHeader = true,
+  spreadPresets = false,
 }: {
   set: PokemonSet;
   onChange: (s: PokemonSet) => void;
   title?: string;
   /** Off when the page shows the species picker elsewhere (the calculator's top bar). */
   showHeader?: boolean;
+  /** One-click SP presets from the ladder's spread table, above the SP editor. */
+  spreadPresets?: boolean;
 }) {
   const filler = useSetFiller(set, onChange);
   const { filling, fillError, fillCommon } = filler;
@@ -258,6 +262,7 @@ export function SetEditor({
             ))}
           </div>
 
+          {spreadPresets && <SpreadPresets set={set} onChange={onChange} />}
           <SpEditor set={set} onChange={onChange} />
 
           <div className="row gap">

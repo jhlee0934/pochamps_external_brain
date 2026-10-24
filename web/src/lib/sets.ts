@@ -95,6 +95,8 @@ export interface SideExtras {
   curHpPercent?: number;
   /** Rage Fist hits, fainted allies, Metronome uses, doubling conditions. */
   stacks?: Stacks;
+  /** Setup moves used once each (calculator toggles); their stages add to `boosts`. */
+  setups?: string[];
 }
 
 export function toSide(set: PokemonSet, extras: SideExtras = {}): SideInput {
@@ -197,6 +199,34 @@ export function combineBoosts(moves: string[]): Boosts {
     }
   }
   return out;
+}
+
+// Korean community shorthand for the six stats.
+const HABCDS: Record<Stat, string> = { hp: 'H', atk: 'A', def: 'B', spa: 'C', spd: 'D', spe: 'S' };
+
+/** "A32 S32 H2": invested stats, biggest first (HABCDS order on ties). */
+export function spShort(sp: StatPoints): string {
+  return STATS.filter((s) => sp[s] > 0)
+    .sort((a, b) => sp[b] - sp[a] || STATS.indexOf(a) - STATS.indexOf(b))
+    .map((s) => `${HABCDS[s]}${sp[s]}`)
+    .join(' ') || '무투자';
+}
+
+export const sameSp = (a: StatPoints, b: StatPoints) => STATS.every((s) => a[s] === b[s]);
+
+/** Setup moves toggled on for a set, ignoring any no longer in its move slots. */
+export const activeSetups = (set: PokemonSet, extras: SideExtras) =>
+  setupMovesOf(set).filter((m) => extras.setups?.includes(m));
+
+/** Extras with the toggled setup moves' stages added to the hand-set ranks, within ±6. */
+export function withSetups(set: PokemonSet, extras: SideExtras): SideExtras {
+  const moves = activeSetups(set, extras);
+  if (!moves.length) return extras;
+  const boosts: Boosts = { ...extras.boosts };
+  for (const [stat, n] of Object.entries(combineBoosts(moves)) as [keyof Boosts, number][]) {
+    boosts[stat] = Math.max(-6, Math.min(6, (boosts[stat] ?? 0) + n));
+  }
+  return { ...extras, boosts };
 }
 
 /** "공격 +1 · 스피드 +1" style summary of a boost. */

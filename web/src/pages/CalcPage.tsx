@@ -5,7 +5,22 @@ import { categoryKo, getUsage, ko, toID, usageKey } from '../lib/data';
 import { autoWeather, battleAbility, calcMoves, koTextKo, type AutoWeather, type CalcField, type FieldInput } from '../lib/calc';
 import { useStoredState } from '../lib/hooks';
 import { useParty } from '../lib/party';
-import { commonSet, isMegaForm, megaForm, newSet, normalizeSet, STAT_LABEL, type PokemonSet, type SideExtras } from '../lib/sets';
+import {
+  activeSetups,
+  boostText,
+  combineBoosts,
+  commonSet,
+  isMegaForm,
+  megaForm,
+  newSet,
+  normalizeSet,
+  SETUP_BOOSTS,
+  setupMovesOf,
+  STAT_LABEL,
+  withSetups,
+  type PokemonSet,
+  type SideExtras,
+} from '../lib/sets';
 import { MetaCoverage } from '../components/MetaCoverage';
 import { SetEditor, SetHeader, useSetFiller } from '../components/SetEditor';
 import { Card, TypeBadge } from '../components/ui';
@@ -96,6 +111,9 @@ function StacksEditor({ set, extras, onChange }: { set: PokemonSet; extras: Side
 
 function ExtrasEditor({ set, extras, onChange }: { set: PokemonSet; extras: SideExtras; onChange: (e: SideExtras) => void }) {
   const mega = megaForm(set);
+  // Ranks show hand-set + toggled setup stages; a pick sets the total, so the hand-set part absorbs the difference.
+  const shown = withSetups(set, extras).boosts ?? {};
+  const fromSetups = combineBoosts(activeSetups(set, extras));
   return (
     <div className="extras">
       <StacksEditor set={set} extras={extras} onChange={onChange} />
@@ -111,8 +129,10 @@ function ExtrasEditor({ set, extras, onChange }: { set: PokemonSet; extras: Side
             <span>{STAT_LABEL[s]} 랭크</span>
             <select
               className="input"
-              value={extras.boosts?.[s] ?? 0}
-              onChange={(e) => onChange({ ...extras, boosts: { ...extras.boosts, [s]: Number(e.target.value) } })}
+              value={shown[s] ?? 0}
+              onChange={(e) =>
+                onChange({ ...extras, boosts: { ...extras.boosts, [s]: Number(e.target.value) - (fromSetups[s] ?? 0) } })
+              }
             >
               {Array.from({ length: 13 }, (_, i) => i - 6).map((v) => (
                 <option key={v} value={v}>
@@ -182,12 +202,38 @@ function SidePicker({ title, set, onChange }: { title: string; set: PokemonSet; 
 
 const FRESH_EXTRAS: SideExtras = { mega: true };
 
+/** One button per setup move in the side's moves; shown only when it has any. */
+function SetupToggles({ label, set, extras, onChange }: { label: string; set: PokemonSet; extras: SideExtras; onChange: (e: SideExtras) => void }) {
+  const moves = setupMovesOf(set);
+  if (!moves.length) return null;
+  const on = activeSetups(set, extras);
+  const toggle = (move: string) =>
+    onChange({ ...extras, setups: on.includes(move) ? on.filter((m) => m !== move) : [...on, move] });
+  return (
+    <div className="toggle-row">
+      <span className="toggle-label">{label} 랭업기</span>
+      {moves.map((move) => (
+        <button
+          type="button"
+          key={move}
+          className={on.includes(move) ? 'toggle-btn active' : 'toggle-btn'}
+          aria-pressed={on.includes(move)}
+          onClick={() => toggle(move)}
+          title={`1회 사용: ${boostText(SETUP_BOOSTS[toID(move)])}`}
+        >
+          {ko('moves', move)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const STATUS_KO: Record<string, string> = { brn: '화상', par: '마비', psn: '독', tox: '맹독', slp: '잠듦', frz: '얼음' };
 
 /** Non-default battle conditions of one side, as short Korean labels. */
 function extrasLabels(set: PokemonSet, extras: SideExtras): string[] {
-  const out: string[] = [];
-  for (const [stat, v] of Object.entries(extras.boosts ?? {})) {
+  const out: string[] = activeSetups(set, extras).map((m) => `${ko('moves', m)} 사용`);
+  for (const [stat, v] of Object.entries(withSetups(set, extras).boosts ?? {})) {
     if (v) out.push(`${STAT_LABEL[stat as keyof typeof STAT_LABEL]} ${v > 0 ? '+' : ''}${v}`);
   }
   if (extras.status) out.push(STATUS_KO[extras.status]);
@@ -282,15 +328,18 @@ export function CalcPage() {
   const setDefender = (defender: PokemonSet) =>
     setState((s) => ({ ...s, defender, dExtras: defender.species === s.defender.species ? s.dExtras : FRESH_EXTRAS }));
   const setField = (p: Partial<CalcField>) => setState((s) => ({ ...s, field: { ...s.field, ...p } }));
-  const auto = autoWeather(state.field, state.attacker, state.aExtras, state.defender, state.dExtras);
+  // Ranks the calcs use: hand-set ranks plus toggled setup moves.
+  const aExtras = useMemo(() => withSetups(state.attacker, state.aExtras), [state.attacker, state.aExtras]);
+  const dExtras = useMemo(() => withSetups(state.defender, state.dExtras), [state.defender, state.dExtras]);
+  const auto = autoWeather(state.field, state.attacker, aExtras, state.defender, dExtras);
 
   const results = useMemo(
-    () => (state.attacker.species && state.defender.species ? calcMoves(state.attacker, state.aExtras, state.defender, state.dExtras, state.field, state.isCrit) : []),
-    [state],
+    () => (state.attacker.species && state.defender.species ? calcMoves(state.attacker, aExtras, state.defender, dExtras, state.field, state.isCrit) : []),
+    [state, aExtras, dExtras],
   );
   const reverse = useMemo(
-    () => (state.attacker.species && state.defender.species ? calcMoves(state.defender, state.dExtras, state.attacker, state.aExtras, swapSides(state.field), state.isCrit) : []),
-    [state],
+    () => (state.attacker.species && state.defender.species ? calcMoves(state.defender, dExtras, state.attacker, aExtras, swapSides(state.field), state.isCrit) : []),
+    [state, aExtras, dExtras],
   );
 
   return (
@@ -324,6 +373,8 @@ export function CalcPage() {
       </Card>
 
       <Card title={`${ko('species', state.attacker.species) || '공격'} → ${ko('species', state.defender.species) || '방어'}`} className="results-card">
+        <SetupToggles label="공격 측" set={state.attacker} extras={state.aExtras} onChange={(aExtras) => patch({ aExtras })} />
+        <SetupToggles label="방어 측" set={state.defender} extras={state.dExtras} onChange={(dExtras) => patch({ dExtras })} />
         <ConditionChips label="공격 측" set={state.attacker} extras={state.aExtras} onReset={() => patch({ aExtras: FRESH_EXTRAS })} />
         <ConditionChips label="방어 측" set={state.defender} extras={state.dExtras} onReset={() => patch({ dExtras: FRESH_EXTRAS })} />
         <MoveResults results={results} empty="공격 측에 공격 기술을 넣으면 결과가 나옵니다." />
@@ -337,7 +388,7 @@ export function CalcPage() {
 
       <MetaCoverage
         attacker={state.attacker}
-        extras={state.aExtras}
+        extras={aExtras}
         field={state.field}
         isCrit={state.isCrit}
         onPick={(defender) => {
@@ -348,11 +399,11 @@ export function CalcPage() {
 
       <div className="grid-2">
         <Card title={`공격 측 세부 설정 · ${ko('species', state.attacker.species) || '미선택'}`}>
-          <SetEditor set={state.attacker} onChange={setAttacker} showHeader={false} />
+          <SetEditor set={state.attacker} onChange={setAttacker} showHeader={false} spreadPresets />
           <ExtrasEditor set={state.attacker} extras={state.aExtras} onChange={(aExtras) => patch({ aExtras })} />
         </Card>
         <Card title={`방어 측 세부 설정 · ${ko('species', state.defender.species) || '미선택'}`}>
-          <SetEditor set={state.defender} onChange={setDefender} showHeader={false} />
+          <SetEditor set={state.defender} onChange={setDefender} showHeader={false} spreadPresets />
           <ExtrasEditor set={state.defender} extras={state.dExtras} onChange={(dExtras) => patch({ dExtras })} />
         </Card>
       </div>

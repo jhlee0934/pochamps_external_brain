@@ -2,7 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { CUSTOM_RANK, customTargets } from './custom';
 import { boostAffects, metaVariants, rankLabel, setupMoveCounts, setupsOf, targetKey, withBoosted, type MetaTarget } from './meta';
 import { MAX_PARTIES } from './party';
-import { boostText, combineBoosts, effectiveSpeed, groupBySpeed, SETUP_BOOSTS, setupMovesOf, SPEED_SETUP, type PokemonSet } from './sets';
+import {
+  activeSetups,
+  boostText,
+  combineBoosts,
+  effectiveSpeed,
+  groupBySpeed,
+  SETUP_BOOSTS,
+  sameSp,
+  setupMovesOf,
+  spShort,
+  SPEED_SETUP,
+  withSetups,
+  type PokemonSet,
+} from './sets';
 import { salamenceSingles, usage } from '../test/usage';
 
 const set = (species: string, moves: string[], item = ''): PokemonSet => ({
@@ -135,5 +148,40 @@ describe('my setup moves', () => {
     expect(combineBoosts(['Belly Drum', 'Swords Dance'])).toEqual({ atk: 6 });
     expect(combineBoosts(['Shell Smash'])).toEqual({ atk: 2, spa: 2, spe: 2, def: -1, spd: -1 });
     expect(combineBoosts([])).toEqual({});
+  });
+});
+
+describe('calculator setup toggles', () => {
+  const sd = set('Garchomp', ['Earthquake', 'Swords Dance', '', '']);
+
+  it('add toggled stages to hand-set ranks, within ±6', () => {
+    expect(withSetups(sd, { setups: ['Swords Dance'] }).boosts).toEqual({ atk: 2 });
+    expect(withSetups(sd, { boosts: { atk: 1, spe: 1 }, setups: ['Swords Dance'] }).boosts).toEqual({ atk: 3, spe: 1 });
+    expect(withSetups(sd, { boosts: { atk: 5 }, setups: ['Swords Dance'] }).boosts).toEqual({ atk: 6 });
+  });
+
+  it('leave extras alone with nothing toggled', () => {
+    const extras = { boosts: { def: 1 } };
+    expect(withSetups(sd, extras)).toBe(extras);
+  });
+
+  it('ignore a toggle whose move left the set', () => {
+    const noSd = set('Garchomp', ['Earthquake', 'Outrage', '', '']);
+    expect(activeSetups(noSd, { setups: ['Swords Dance'] })).toEqual([]);
+    expect(withSetups(noSd, { setups: ['Swords Dance'] }).boosts).toBeUndefined();
+  });
+});
+
+describe('SP presets', () => {
+  it('write spreads in HABCDS shorthand, biggest first', () => {
+    expect(spShort({ hp: 2, atk: 32, def: 0, spa: 0, spd: 0, spe: 32 })).toBe('A32 S32 H2');
+    expect(spShort({ hp: 32, atk: 0, def: 32, spa: 0, spd: 2, spe: 0 })).toBe('H32 B32 D2');
+    expect(spShort({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 })).toBe('무투자');
+  });
+
+  it('compare spreads stat by stat', () => {
+    const a = { hp: 2, atk: 32, def: 0, spa: 0, spd: 0, spe: 32 };
+    expect(sameSp(a, { ...a })).toBe(true);
+    expect(sameSp(a, { ...a, hp: 3 })).toBe(false);
   });
 });

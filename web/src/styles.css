@@ -2001,3 +2001,22 @@ a.mon-link:hover strong {
   background: var(--boost-weak);
   color: var(--boost);
 }
+
+/* ---------- SP presets ---------- */
+.sp-presets {
+  margin-top: 14px;
+}
+
+.sp-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sp-preset-list .toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
