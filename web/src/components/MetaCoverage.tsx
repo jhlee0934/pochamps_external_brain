@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { categoryKo, ko } from '../lib/data';
 import { autoWeather, movePower, type CalcField, type MoveResult } from '../lib/calc';
-import { useAsync, useStoredState } from '../lib/hooks';
-import { FORMAT_OPTIONS, formatKo, loadMetaTargets, shareLabel, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
+import { useStoredState } from '../lib/hooks';
+import { FORMAT_OPTIONS, formatKo, rankLabel, shareLabel, targetName, useMetaFormat, useMetaTargets, type MetaTarget } from '../lib/meta';
 import { battleSpecies, newSet, type PokemonSet, type SideExtras } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
 import type { CoverageRequest, CoverageResult } from '../workers/coverage.worker';
@@ -47,7 +47,7 @@ export function MetaCoverage({
 }) {
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.coverage.count', '30');
   const [format, setFormat] = useMetaFormat();
-  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
+  const targets = useMetaTargets(Number(count), format);
   const request = useMemo<CoverageRequest | null>(
     () => (targets.data && attacker.species ? { attacker, extras, field, isCrit, targets: targets.data } : null),
     [targets.data, attacker, extras, field, isCrit],
@@ -148,8 +148,8 @@ export function MetaCoverage({
                       <button
                         type="button"
                         key={target.key}
-                        className="coverage-mon"
-                        title={`${target.rank}위 ${name}${shareLabel(target)}: ${result.minPercent}–${result.maxPercent}%`}
+                        className={target.custom ? 'coverage-mon custom' : 'coverage-mon'}
+                        title={`${rankLabel(target)} ${name}${shareLabel(target)}: ${result.minPercent}–${result.maxPercent}%`}
                         aria-label={`${name} ${result.minPercent}–${result.maxPercent}%, 방어 측으로 설정`}
                         onClick={() => onPick(target.set)}
                       >

@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { gen, ko, toID } from '../lib/data';
-import { useAsync, useStoredState } from '../lib/hooks';
-import { newParty, useParty } from '../lib/party';
-import { FORMAT_OPTIONS, loadMetaTargets, roleLabel, useMetaFormat, type MetaTarget } from '../lib/meta';
+import { useStoredState } from '../lib/hooks';
+import { MAX_PARTIES, newParty, useParty } from '../lib/party';
+import { FORMAT_OPTIONS, roleLabel, setupsOf, SETUP_MIN_PCT, SETUP_TOP, useMetaFormat, useMetaTargets, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
 import { exportTeam, importTeam } from '../lib/showdown';
 import { multiplier, multiplierLabel, TYPES } from '../lib/typechart';
@@ -71,6 +71,7 @@ interface SpeedEntry {
   scarfPct?: number | null;
   share?: number;
   role?: MetaTarget['role'];
+  custom?: boolean;
   /** Set when this row is a meta Pokemon after a speed-raising move. */
   boost?: { move: string; stages: number; pct: number | null };
 }
@@ -79,17 +80,39 @@ const SCARF = 'Choice Scarf';
 // A scarf row needs the scarf in the top 5 items and at least this usage %.
 const SCARF_TOP = 5;
 const SCARF_MIN_PCT = 5;
-// A setup row needs the move in the top 6 moves and at least this usage %.
-const SETUP_TOP = 6;
-const SETUP_MIN_PCT = 10;
 
 interface MetaSpeedRow {
   set: PokemonSet;
   /** Build share when the ladder entry has several builds (forms, physical / special). */
   share?: number;
   role?: MetaTarget['role'];
+  custom?: boolean;
   scarfRow?: { set: PokemonSet; pct: number | null };
   setups: { move: string; stages: number; pct: number | null }[];
+}
+
+function SpeedChip({ r }: { r: SpeedEntry }) {
+  const scarf = toID(r.set.item) === 'choicescarf';
+  const kind = r.mine ? 'mine' : r.boost ? 'boost' : scarf ? 'scarf' : r.custom ? 'custom' : '';
+  return (
+    <span className={`speed-mon ${kind}`}>
+      <Sprite species={battleSpecies(r.set)} size={28} />
+      <span>
+        {ko('species', battleSpecies(r.set))}
+        {roleLabel(r)}
+        {r.share != null && !r.boost && <span className="muted small"> 비중 {r.share}%</span>}
+        {scarf && <span className="chip small scarf">스카프{r.scarfPct != null && ` ${r.scarfPct}%`}</span>}
+        {r.boost && (
+          <span className="chip small boost">
+            {ko('moves', r.boost.move)} +{r.boost.stages}
+            {r.boost.pct != null && ` · ${r.boost.pct}%`}
+          </span>
+        )}
+        {r.custom && <span className="chip small custom">커스텀</span>}
+        {r.mine && <span className="chip small accent">내 파티</span>}
+      </span>
+    </span>
+  );
 }
 
 function SpeedLine({ members }: { members: PokemonSet[] }) {
@@ -98,23 +121,26 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.speed.setup', []);
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.speed.count', '50');
   const [format, setFormat] = useMetaFormat();
-  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
+  const targets = useMetaTargets(Number(count), format);
   // Base rows exclude Scarf, including when it is the most popular item.
   // The toggle adds every Scarf row; setup rows use the same unscarfed base.
   const meta = useMemo(() => {
     if (!targets.data) return { data: undefined };
-    const formsByRank = new Map<number, MetaTarget[]>();
-    for (const t of targets.data) formsByRank.set(t.rank, [...(formsByRank.get(t.rank) ?? []), t]);
+    // Builds of one ladder entry share its usage; each custom sample stands alone.
+    const groups = new Map<string, MetaTarget[]>();
+    for (const t of targets.data) {
+      const group = t.custom ? t.key : String(t.rank);
+      groups.set(group, [...(groups.get(group) ?? []), t]);
+    }
     const rows: MetaSpeedRow[] = [];
-    for (const forms of formsByRank.values()) {
+    for (const forms of groups.values()) {
       const { usage } = forms[0];
-      const scarf = usage.items
-        .slice(0, SCARF_TOP)
-        .find((i) => i.name === SCARF && (i.pct ?? 0) >= SCARF_MIN_PCT);
-      const setups = usage.moves
-        .slice(0, SETUP_TOP)
-        .filter((m) => SPEED_SETUP[toID(m.name)] && (m.pct ?? 0) >= SETUP_MIN_PCT)
-        .map((m) => ({ move: m.name, stages: SPEED_SETUP[toID(m.name)], pct: m.pct }));
+      const scarf = forms[0].custom
+        ? undefined
+        : usage.items.slice(0, SCARF_TOP).find((i) => i.name === SCARF && (i.pct ?? 0) >= SCARF_MIN_PCT);
+      const setups = setupsOf(forms[0])
+        .filter((s) => SPEED_SETUP[toID(s.move)])
+        .map((s) => ({ ...s, stages: SPEED_SETUP[toID(s.move)] }));
       const hasScarf = forms.some((f) => f.set.item === SCARF);
       forms.forEach((f, i) => {
         const isScarf = f.set.item === SCARF;
@@ -122,6 +148,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
           set: isScarf ? { ...f.set, item: '' } : f.set,
           share: f.share,
           role: f.role,
+          custom: f.custom,
           scarfRow: isScarf
             ? { set: f.set, pct: usage.items.find((item) => item.name === SCARF)?.pct ?? null }
             : i === 0 && scarf && !hasScarf ? { set: { ...f.set, item: SCARF }, pct: scarf.pct } : undefined,
@@ -140,19 +167,25 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [meta.data]);
 
-  const rows = useMemo(() => {
+  // One line per speed value; Pokemon at the same speed sit side by side, my party first.
+  const lines = useMemo(() => {
     const out: SpeedEntry[] = members.map((m) => ({ set: m, mine: true, speed: effectiveSpeed(m) ?? 0 }));
     for (const r of meta.data ?? []) {
-      out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set) ?? 0, share: r.share, role: r.role });
+      const base = { mine: false, share: r.share, role: r.role, custom: r.custom };
+      out.push({ ...base, set: r.set, speed: effectiveSpeed(r.set) ?? 0 });
       if (showScarf && r.scarfRow) {
-        out.push({ set: r.scarfRow.set, mine: false, speed: effectiveSpeed(r.scarfRow.set) ?? 0, scarfPct: r.scarfRow.pct, role: r.role });
+        out.push({ ...base, share: undefined, set: r.scarfRow.set, speed: effectiveSpeed(r.scarfRow.set) ?? 0, scarfPct: r.scarfRow.pct });
       }
       for (const s of r.setups) {
         if (!setupOn.includes(s.move)) continue;
-        out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set, true, s.stages) ?? 0, boost: s, share: r.share, role: r.role });
+        out.push({ ...base, set: r.set, speed: effectiveSpeed(r.set, true, s.stages) ?? 0, boost: s });
       }
     }
-    return out.sort((a, b) => b.speed - a.speed);
+    const bySpeed = new Map<number, SpeedEntry[]>();
+    for (const e of out) bySpeed.set(e.speed, [...(bySpeed.get(e.speed) ?? []), e]);
+    return [...bySpeed.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([speed, entries]) => ({ speed, entries: entries.sort((a, b) => Number(b.mine) - Number(a.mine)) }));
   }, [members, meta.data, showScarf, setupOn]);
 
   const scarfCount = (meta.data ?? []).filter((r) => r.scarfRow).length;
@@ -207,32 +240,23 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
       </div>
       {targets.loading && <Loading label={`메타 상위 ${count}마리 세팅을 불러오는 중…`} />}
       <ol className="speed-line">
-        {rows.map((r, i) => (
-          <li key={i} className={r.mine ? 'mine' : r.boost ? 'boost' : toID(r.set.item) === 'choicescarf' ? 'scarf' : ''}>
-            <span className="speed-value">{r.speed}</span>
-            <Sprite species={battleSpecies(r.set)} size={28} />
-            <span className="grow">
-              {ko('species', battleSpecies(r.set))}{roleLabel(r)}
-              {r.share != null && !r.boost && <span className="muted small"> 비중 {r.share}%</span>}
-              {toID(r.set.item) === 'choicescarf' && (
-                <span className="chip small scarf">스카프{r.scarfPct != null && ` ${r.scarfPct}%`}</span>
-              )}
-              {r.boost && (
-                <span className="chip small boost">
-                  {ko('moves', r.boost.move)} +{r.boost.stages}
-                  {r.boost.pct != null && ` · ${r.boost.pct}%`}
-                </span>
-              )}
+        {lines.map((line) => (
+          <li key={line.speed} className={line.entries.some((e) => e.mine) ? 'mine' : ''}>
+            <span className="speed-value">{line.speed}</span>
+            <span className="speed-mons">
+              {line.entries.map((e, i) => (
+                <SpeedChip key={i} r={e} />
+              ))}
             </span>
-            {r.mine && <span className="chip small accent">내 파티</span>}
           </li>
         ))}
       </ol>
       <p className="fine">
-        메타 기본 줄은 사용률 1위 성격·SP·도구에서 구애스카프 배율을 제외한 스피드입니다. 구애스카프 버튼을 켜면 원래 스카프 세팅과
-        도구 상위 {SCARF_TOP}위 안이면서 채용률 {SCARF_MIN_PCT}% 이상인 스카프 세팅을 별도 줄로 표시합니다. 내 파티의 도구는 항상 반영합니다.
-        랭업기는 스카프 없이 기술을 1회 사용한 기준이며, 기술 상위 {SETUP_TOP}위 안이면서 채용률 {SETUP_MIN_PCT}% 이상인 포켓몬만 한 줄 더 표시합니다(버튼 옆 숫자는 해당 마릿수,
-        줄 옆 숫자는 채용률). 랭업기는 1회 사용 기준이고, 날씨 특성·순풍 등은 반영하지 않았습니다.
+        같은 스피드의 포켓몬은 한 줄에 나란히 표시합니다. 메타 기본 줄은 인기 성격·SP·도구에서 구애스카프 배율을 제외한 스피드입니다.
+        구애스카프 버튼을 켜면 원래 스카프 세팅과 도구 상위 {SCARF_TOP}위 안이면서 채용률 {SCARF_MIN_PCT}% 이상인 스카프 세팅을 따로
+        표시합니다. 내 파티와 커스텀 샘플의 도구는 항상 반영합니다. 랭업기는 스카프 없이 기술을 1회 사용한 기준이며, 기술 상위 {SETUP_TOP}위
+        안이면서 채용률 {SETUP_MIN_PCT}% 이상인 포켓몬(커스텀 샘플은 기술에 있으면)만 추가로 표시합니다(버튼 옆 숫자는 해당 마릿수, 칩 옆
+        숫자는 채용률). 날씨 특성·순풍 등은 반영하지 않았습니다.
       </p>
     </>
   );
@@ -292,13 +316,15 @@ export function PartyPage() {
           <button
             type="button"
             className="btn"
+            disabled={store.parties.length >= MAX_PARTIES}
+            title={store.parties.length >= MAX_PARTIES ? `파티는 ${MAX_PARTIES}개까지 저장할 수 있습니다.` : undefined}
             onClick={() => {
               const p = newParty(`파티 ${store.parties.length + 1}`);
-              setStore((s) => ({ parties: [...s.parties, p], currentId: p.id }));
+              setStore((s) => (s.parties.length >= MAX_PARTIES ? s : { parties: [...s.parties, p], currentId: p.id }));
               setSelected(0);
             }}
           >
-            새 파티
+            새 파티 ({store.parties.length}/{MAX_PARTIES})
           </button>
           <button
             type="button"

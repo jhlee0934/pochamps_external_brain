@@ -12,6 +12,9 @@ export interface PartyStore {
   currentId: string;
 }
 
+/** Party presets a browser keeps at most. */
+export const MAX_PARTIES = 6;
+
 export const newParty = (name = '새 파티'): Party => ({
   id: Math.random().toString(36).slice(2, 10),
   name,

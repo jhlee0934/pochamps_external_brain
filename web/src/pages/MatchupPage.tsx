@@ -5,6 +5,7 @@ import { koTextKo, type MoveResult } from '../lib/calc';
 import { useStoredState } from '../lib/hooks';
 import { withRo } from '../lib/korean';
 import { useParty } from '../lib/party';
+import { customTargets, useCustomSamples } from '../lib/custom';
 import { FORMAT_OPTIONS, formatKo, loadMetaTargets, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, type PokemonSet } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
@@ -18,6 +19,7 @@ interface Row {
   /** Build share when the ladder entry has several builds (Mega X / Mega Y / base, physical / special). */
   share?: number;
   role?: MetaTarget['role'];
+  custom?: boolean;
   offense?: MoveResult;
   defense?: MoveResult;
   mySpeed: number;
@@ -58,6 +60,7 @@ export function MatchupPage() {
   const [index, setIndex] = useStoredState('pochamps.matchup.member', 0);
   const [count, setCount] = useStoredState<'20' | '30' | '50'>('pochamps.matchup.count', '30');
   const [format, setFormat] = useMetaFormat();
+  const { samples } = useCustomSamples();
   // The format the shown results were computed for; changing the toggle waits for the button.
   const [computedFormat, setComputedFormat] = useState(format);
   // Set by the button; the worker runs whenever it changes. Results stay tied to job.me, so
@@ -76,7 +79,8 @@ export function MatchupPage() {
     setLoading(true);
     try {
       // One target per form, so Mega Charizard X and Y are judged separately.
-      setJob({ me, targets: await loadMetaTargets(Number(count), format) });
+      // Custom samples join whatever the count; they are a snapshot until the next run.
+      setJob({ me, targets: [...(await loadMetaTargets(Number(count), format)), ...customTargets(samples)] });
       setComputedFormat(format);
     } catch (e) {
       setLoadError((e as Error).message);
@@ -98,6 +102,7 @@ export function MatchupPage() {
         set: t.set,
         share: t.share,
         role: t.role,
+        custom: t.custom,
         offense,
         defense,
         mySpeed,
@@ -208,7 +213,7 @@ export function MatchupPage() {
                     onClick={() => navigate('/calc', { state: { attacker: computedFor, defender: r.set } })}
                     title="계산기에서 자세히 보기"
                   >
-                    <td className="num rank">{r.rank}</td>
+                    <td className="num rank">{r.custom ? <span className="chip small custom">커스텀</span> : r.rank}</td>
                     <td>
                       <span className="mon-link">
                         <Sprite species={battleSpecies(r.set)} size={32} />

@@ -1,10 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ko } from '../lib/data';
+import { ko, toID } from '../lib/data';
 import type { MoveResult } from '../lib/calc';
-import { useAsync, useStoredState } from '../lib/hooks';
+import { useStoredState } from '../lib/hooks';
 import { withEul, withRo } from '../lib/korean';
-import { FORMAT_OPTIONS, formatKo, loadMetaTargets, shareLabel, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
-import { battleSpecies, effectiveSpeed, SP_MAX_PER_STAT, SP_MAX_TOTAL, spTotal, type PokemonSet } from '../lib/sets';
+import {
+  boostLabel,
+  FORMAT_OPTIONS,
+  formatKo,
+  rankLabel,
+  setupMoveCounts,
+  SETUP_MIN_PCT,
+  SETUP_TOP,
+  shareLabel,
+  targetName,
+  useMetaFormat,
+  useMetaTargets,
+  withBoosted,
+  type MetaTarget,
+} from '../lib/meta';
+import { battleSpecies, boostText, effectiveSpeed, SETUP_BOOSTS, SP_MAX_PER_STAT, SP_MAX_TOTAL, spTotal, type PokemonSet } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
 import type { BenchmarkRequest, BenchmarkResult, BenchmarkRow } from '../workers/benchmark.worker';
 import { Card, Loading, Segmented, Sprite } from './ui';
@@ -27,7 +41,8 @@ function defTier(r: MoveResult | undefined): DefTier {
   return r.koText?.startsWith('guaranteed') ? 'ko' : 'chance';
 }
 
-const monName = (t: MetaTarget) => targetName(t);
+// A boosted target reads "망나뇽(용의춤)" so it never looks like the plain one.
+const monName = (t: MetaTarget) => `${targetName(t)}${t.boost ? `(${ko('moves', t.boost.move)})` : ''}`;
 const monNameShare = (t: MetaTarget) => `${monName(t)}${shareLabel(t)}`;
 const withNature = (t: MetaTarget) => `${t.set.nature ? `${ko('natures', t.set.nature)} ` : ''}${monName(t)}`;
 const pctRange = (r: MoveResult) => `${r.minPercent}–${r.maxPercent}%`;
@@ -76,6 +91,8 @@ function diff(
   return out.sort((a, b) => a.rank - b.rank);
 }
 
+const targetSpeed = (t: MetaTarget) => effectiveSpeed(t.set, true, t.boosts?.spe ?? 0) ?? 0;
+
 /** Speed SP needed to outspeed `target`, or undefined if 32 SP is not enough. */
 function speedSpNeeded(set: PokemonSet, target: number): number | undefined {
   for (let v = set.sp.spe + 1; v <= SP_MAX_PER_STAT; v++) {
@@ -86,8 +103,9 @@ function speedSpNeeded(set: PokemonSet, target: number): number | undefined {
 }
 
 function MonIcon({ t, title }: { t: MetaTarget; title: string }) {
+  const full = t.boost ? `${title} · ${boostLabel(t)}` : title;
   return (
-    <span className="bench-mon" title={title} aria-label={title}>
+    <span className={t.boost ? 'bench-mon boosted' : t.custom ? 'bench-mon custom' : 'bench-mon'} title={full} aria-label={full}>
       <Sprite species={battleSpecies(t.set)} size={28} />
     </span>
   );
@@ -100,7 +118,19 @@ function MonIcon({ t, title }: { t: MetaTarget; title: string }) {
 export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baselineKey: string }) {
   const [count, setCount] = useStoredState<'30' | '50'>('pochamps.bench.count', '30');
   const [format, setFormat] = useMetaFormat();
-  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
+  const sample = useMetaTargets(Number(count), format);
+  // Setup moves are off by default; each one adds a boosted copy of every target running it.
+  const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.bench.setup', []);
+  // Only moves that change attack or bulk; Speed-only ones live in the speed line.
+  const setupMoves = useMemo(
+    () => setupMoveCounts(sample.data ?? [], (b) => Object.keys(b).some((stat) => stat !== 'spe')),
+    [sample.data],
+  );
+  const activeSetups = useMemo(() => setupOn.filter((m) => setupMoves.some(([move]) => move === m)), [setupOn, setupMoves]);
+  const targetList = useMemo(() => sample.data && withBoosted(sample.data, activeSetups), [sample.data, activeSetups]);
+  const targets = { ...sample, data: targetList };
+  const toggleSetup = (move: string) =>
+    setSetupOn(setupOn.includes(move) ? setupOn.filter((m) => m !== move) : [...setupOn, move]);
   const request = useMemo<BenchmarkRequest | null>(
     () => (set.species && targets.data ? { me: set, targets: targets.data } : null),
     [set, targets.data],
@@ -110,7 +140,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
 
   const byKey = useMemo(() => new Map((targets.data ?? []).map((t) => [t.key, t])), [targets.data]);
   const speeds = useMemo(
-    () => new Map((targets.data ?? []).map((t) => [t.key, effectiveSpeed(t.set) ?? 0])),
+    () => new Map((targets.data ?? []).map((t) => [t.key, targetSpeed(t)])),
     [targets.data],
   );
   const mySpeed = effectiveSpeed(set) ?? 0;
@@ -137,9 +167,9 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
   const off = (tier: number) => rows.filter((x) => offTier(x.r.offense) === tier);
   const def = (tier: DefTier) => rows.filter((x) => defTier(x.r.defense) === tier);
   const offTitle = (x: { r: BenchmarkRow; t: MetaTarget }) =>
-    `${x.t.rank}위 ${monNameShare(x.t)} · ${ko('moves', x.r.offense!.move)} ${pctRange(x.r.offense!)}`;
+    `${rankLabel(x.t)} ${monNameShare(x.t)} · ${ko('moves', x.r.offense!.move)} ${pctRange(x.r.offense!)}`;
   const defTitle = (x: { r: BenchmarkRow; t: MetaTarget }) =>
-    `${x.t.rank}위 ${withNature(x.t)} · ${ko('moves', x.r.defense!.move)} ${pctRange(x.r.defense!)}`;
+    `${rankLabel(x.t)} ${withNature(x.t)} · ${ko('moves', x.r.defense!.move)} ${pctRange(x.r.defense!)}`;
 
   // Close calls worth a few SP either way.
   const edgeSafe = def('safe')
@@ -149,12 +179,14 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
     .filter((x) => x.r.defense && defTier(x.r.defense) !== 'safe' && x.r.defense.minPercent < 115)
     .sort((a, b) => a.r.defense!.minPercent - b.r.defense!.minPercent);
 
-  const faster = rows.filter((x) => mySpeed > (speeds.get(x.t.key) ?? 0)).length;
-  const ties = rows.filter((x) => mySpeed === (speeds.get(x.t.key) ?? 0)).length;
-  const nextSpeedTargets = [...new Set(rows.map((x) => speeds.get(x.t.key) ?? 0).filter((s) => s >= mySpeed))]
+  // A boosted copy only counts for speed when its move raised Speed; otherwise it repeats the plain one.
+  const speedRows = rows.filter((x) => !x.t.boosts || (x.t.boosts.spe ?? 0) > 0);
+  const faster = speedRows.filter((x) => mySpeed > (speeds.get(x.t.key) ?? 0)).length;
+  const ties = speedRows.filter((x) => mySpeed === (speeds.get(x.t.key) ?? 0)).length;
+  const nextSpeedTargets = [...new Set(speedRows.map((x) => speeds.get(x.t.key) ?? 0).filter((s) => s >= mySpeed))]
     .sort((a, b) => a - b)
     .slice(0, 3)
-    .map((s) => ({ speed: s, sp: speedSpNeeded(set, s), mons: rows.filter((x) => speeds.get(x.t.key) === s).map((x) => x.t) }));
+    .map((s) => ({ speed: s, sp: speedSpNeeded(set, s), mons: speedRows.filter((x) => speeds.get(x.t.key) === s).map((x) => x.t) }));
   const spareSp = SP_MAX_TOTAL - spTotal(set.sp);
 
   return (
@@ -178,8 +210,31 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
     >
       <p className="fine bench-note">
         {formatKo(format)} 메타 상위 포켓몬의 인기 세팅(물리형·특수형별 인기 성격·SP·기술과 도구, 메가스톤이면 메가진화)을 샘플로, 지금 배분으로 누구를 잡고 누구의 공격을
-        버티는지 보여줍니다. 기술·도구를 바꿔도 바로 다시 계산합니다.
+        버티는지 보여줍니다. 기술·도구를 바꿔도 바로 다시 계산합니다. 포켓몬 상세에서 만든 커스텀 샘플도 함께 비교합니다.
       </p>
+      {setupMoves.length > 0 && (
+        <div className="toggle-row">
+          <span className="toggle-label">랭업기</span>
+          {setupMoves.map(([move, n]) => (
+            <button
+              type="button"
+              key={move}
+              className={setupOn.includes(move) ? 'toggle-btn active' : 'toggle-btn'}
+              aria-pressed={setupOn.includes(move)}
+              onClick={() => toggleSetup(move)}
+              title={`${boostText(SETUP_BOOSTS[toID(move)])} · 해당 ${n}마리`}
+            >
+              {ko('moves', move)} <span className="auto-tag">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {activeSetups.length > 0 && (
+        <p className="fine">
+          테두리가 강조된 아이콘은 랭업기를 1회 사용한 상태입니다(기술 상위 {SETUP_TOP}위 안이면서 채용률 {SETUP_MIN_PCT}% 이상인
+          포켓몬, 커스텀 샘플은 기술에 있으면 포함). 공격·내구·스피드 모두 랭크를 반영합니다.
+        </p>
+      )}
       {error && <p className="error-note">계산 중 오류가 났습니다: {error}</p>}
       {!error && (targets.loading || !current) && <Loading label={targets.loading ? '메타 샘플을 불러오는 중…' : '계산 중…'} />}
 
@@ -278,7 +333,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
           <section>
             <h3>스피드 {mySpeed}</h3>
             <p className="small">
-              샘플 {rows.length}마리 중 <strong>{faster}마리</strong>보다 빠름{ties > 0 && `, ${ties}마리와 동속`}
+              샘플 {speedRows.length}마리 중 <strong>{faster}마리</strong>보다 빠름{ties > 0 && `, ${ties}마리와 동속`}
             </p>
             {nextSpeedTargets.length > 0 && (
               <ul className="bench-edges">
@@ -286,7 +341,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
                   <li key={n.speed}>
                     <span className="bench-mons inline">
                       {n.mons.slice(0, 4).map((t) => (
-                        <MonIcon key={t.key} t={t} title={`${t.rank}위 ${withNature(t)} · 스피드 ${n.speed}`} />
+                        <MonIcon key={t.key} t={t} title={`${rankLabel(t)} ${withNature(t)} · 스피드 ${n.speed}`} />
                       ))}
                     </span>{' '}
                     {n.mons.slice(0, 2).map(withNature).join(', ')}

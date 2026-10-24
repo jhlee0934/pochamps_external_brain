@@ -3,8 +3,10 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { gen, getRanking, getTrend, getUsage, ko, toID, usageKey, type Format, type Kind } from '../lib/data';
 import { useAsync } from '../lib/hooks';
 import { useParty } from '../lib/party';
-import { commonSet, megaBase, megaLabel, megaOptions, STAT_LABEL, STATS } from '../lib/sets';
+import { useCustomSamples } from '../lib/custom';
+import { commonSet, defaultAbility, megaBase, megaLabel, megaOptions, newSet, normalizeSet, STAT_LABEL, STATS } from '../lib/sets';
 import { Card, ErrorNote, Loading, PctBar, Sprite, Types } from '../components/ui';
+import { CustomSampleCard } from '../components/CustomSamples';
 import { DefensiveMatchups } from '../components/DefensiveMatchups';
 
 function UsageList({ title, kind, entries }: { title: string; kind: Kind; entries: { name: string; pct: number | null }[] }) {
@@ -86,6 +88,14 @@ export function PokemonPage() {
     if (!usage.data) return;
     setNotice(addToParty(commonSet(name, usage.data)) ? '현재 파티에 추가했습니다.' : '파티가 가득 찼습니다 (6마리).');
   };
+  // A new custom sample starts from the popular set of the shown format, or a blank set off the ladder.
+  const { add: addCustom } = useCustomSamples();
+  const [openCustom, setOpenCustom] = useState<string>();
+  const createCustom = () => {
+    const fromUsage = usage.data?.showdownId === usageKey(name) && usage.data.format === format ? usage.data : undefined;
+    const set = fromUsage ? commonSet(name, fromUsage) : normalizeSet({ ...newSet(name), ability: defaultAbility(megaBase(name)) });
+    setOpenCustom(addCustom(set));
+  };
   const toCalc = (side: 'attacker' | 'defender') => {
     if (!usage.data) return;
     navigate('/calc', { state: { [side]: commonSet(name, usage.data) } });
@@ -135,9 +145,20 @@ export function PokemonPage() {
           <button type="button" className="btn" onClick={() => toCalc('attacker')} disabled={!usage.data}>
             계산기: 공격자로
           </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={createCustom}
+            disabled={!species || usage.loading}
+            title="메타 비교 화면에 순위와 관계없이 함께 나오는 샘플을 만듭니다."
+          >
+            커스텀 샘플 작성
+          </button>
           {notice && <p className="muted">{notice}</p>}
         </div>
       </div>
+
+      {species && <CustomSampleCard species={name} openId={openCustom} />}
 
       {species && (
         <Card title="종족값">

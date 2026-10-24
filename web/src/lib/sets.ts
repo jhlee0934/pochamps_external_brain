@@ -135,20 +135,53 @@ export function effectiveSpeed(set: PokemonSet, mega = true, stages = 0): number
   return toID(set.item) === 'choicescarf' ? Math.floor(spe * 1.5) : spe;
 }
 
-/** Moves that raise the user's Speed, with the number of stages one use gives. */
-export const SPEED_SETUP: Record<string, number> = {
-  shellsmash: 2,
-  agility: 2,
-  rockpolish: 2,
-  shiftgear: 2,
-  dragondance: 1,
-  quiverdance: 1,
-  flamecharge: 1,
-  trailblaze: 1,
-  rapidspin: 1,
-  tidyup: 1,
-  aquastep: 1,
+export type Boosts = NonNullable<SideExtras['boosts']>;
+
+/** Moves that raise the user's stats, with the stages one use gives (drops included). */
+export const SETUP_BOOSTS: Record<string, Boosts> = {
+  swordsdance: { atk: 2 },
+  dragondance: { atk: 1, spe: 1 },
+  bulkup: { atk: 1, def: 1 },
+  coil: { atk: 1, def: 1 },
+  shiftgear: { atk: 1, spe: 2 },
+  tidyup: { atk: 1, spe: 1 },
+  victorydance: { atk: 1, def: 1, spe: 1 },
+  bellydrum: { atk: 6 },
+  shellsmash: { atk: 2, spa: 2, spe: 2, def: -1, spd: -1 },
+  filletaway: { atk: 2, spa: 2, spe: 2 },
+  growth: { atk: 1, spa: 1 },
+  workup: { atk: 1, spa: 1 },
+  nastyplot: { spa: 2 },
+  calmmind: { spa: 1, spd: 1 },
+  quiverdance: { spa: 1, spd: 1, spe: 1 },
+  takeheart: { spa: 1, spd: 1 },
+  tailglow: { spa: 3 },
+  geomancy: { spa: 2, spd: 2, spe: 2 },
+  irondefense: { def: 2 },
+  acidarmor: { def: 2 },
+  cottonguard: { def: 3 },
+  cosmicpower: { def: 1, spd: 1 },
+  amnesia: { spd: 2 },
+  agility: { spe: 2 },
+  rockpolish: { spe: 2 },
+  autotomize: { spe: 2 },
+  flamecharge: { spe: 1 },
+  trailblaze: { spe: 1 },
+  rapidspin: { spe: 1 },
+  aquastep: { spe: 1 },
 };
+
+/** Moves that raise the user's Speed, with the number of stages one use gives. */
+export const SPEED_SETUP: Record<string, number> = Object.fromEntries(
+  Object.entries(SETUP_BOOSTS).flatMap(([id, b]) => ((b.spe ?? 0) > 0 ? [[id, b.spe!]] : [])),
+);
+
+/** "공격 +1 · 스피드 +1" style summary of a boost. */
+export function boostText(boosts: Boosts): string {
+  return (Object.entries(boosts) as [Exclude<Stat, 'hp'>, number][])
+    .map(([stat, n]) => `${STAT_LABEL[stat]} ${n > 0 ? '+' : ''}${n}`)
+    .join(' · ');
+}
 
 export function isSetEmpty(set: PokemonSet | null | undefined): boolean {
   return !set || !set.species;

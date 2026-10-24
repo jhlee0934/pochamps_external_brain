@@ -1858,3 +1858,139 @@ a.mon-link:hover strong {
   color: var(--even);
   border-color: transparent;
 }
+
+/* ---------- custom samples & boosted targets ---------- */
+:root {
+  --boost: #7a4fd0;
+  --boost-weak: #efe8fb;
+  --custom: #2f7fb5;
+  --custom-weak: #e3f0f9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --boost: #b393f5;
+    --boost-weak: #2b2340;
+    --custom: #74b6e3;
+    --custom-weak: #1a2b38;
+  }
+}
+
+.chip.boost {
+  background: var(--boost-weak);
+  color: var(--boost);
+  border-color: transparent;
+}
+
+.chip.custom {
+  background: var(--custom-weak);
+  color: var(--custom);
+  border-color: transparent;
+}
+
+/* Boosted copies of a target: outlined so they never pass for the plain one. */
+.bench-mon.boosted {
+  outline: 2px solid var(--boost);
+  outline-offset: -2px;
+  background: var(--boost-weak);
+}
+
+.bench-mon.custom,
+.coverage-mon.custom {
+  outline: 2px dashed var(--custom);
+  outline-offset: -2px;
+}
+
+.speed-mons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.speed-mon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 0;
+  border-radius: 6px;
+}
+
+.speed-mon > span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed-mon.boost {
+  outline: 2px solid var(--boost);
+  outline-offset: -1px;
+  background: var(--boost-weak);
+}
+
+.speed-mon.custom {
+  outline: 2px dashed var(--custom);
+  outline-offset: -1px;
+}
+
+.speed-line li {
+  align-items: flex-start;
+}
+
+.speed-line .speed-value {
+  padding-top: 5px;
+}
+
+.custom-samples {
+  display: grid;
+  gap: 8px;
+}
+
+.custom-sample {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.custom-sample > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.custom-sample > summary::-webkit-details-marker {
+  display: none;
+}
+
+.custom-sample > summary .btn {
+  margin-left: auto;
+}
+
+.custom-sample[open] > summary {
+  margin-bottom: 12px;
+}
+
+.custom-sample-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.custom-sample-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.custom-sample-list li:last-child {
+  border-bottom: 0;
+}

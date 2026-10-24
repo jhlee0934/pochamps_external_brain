@@ -22,8 +22,9 @@ self.onmessage = (e: MessageEvent<BenchmarkRequest & { id: number }>) => {
   const { id, me, targets } = e.data;
   const result: BenchmarkResult = targets.map((t) => ({
     key: t.key,
-    offense: bestMove(calcMoves(me, {}, t.set, {}, {}, false, { describe: false })),
-    defense: bestMove(calcMoves(t.set, {}, me, {}, {}, false, { describe: false })),
+    // A boosted target keeps its stages both ways: its defenses when I attack, its attack when it does.
+    offense: bestMove(calcMoves(me, {}, t.set, { boosts: t.boosts }, {}, false, { describe: false })),
+    defense: bestMove(calcMoves(t.set, { boosts: t.boosts }, me, {}, {}, false, { describe: false })),
   }));
   self.postMessage({ id, result });
 };

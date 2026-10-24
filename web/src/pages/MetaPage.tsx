@@ -5,6 +5,7 @@ import { useAsync } from '../lib/hooks';
 import { FORMAT_OPTIONS, useMetaFormat } from '../lib/meta';
 import { TYPES } from '../lib/typechart';
 import { Card, ErrorNote, Loading, Segmented, Sprite, TypeBadge, Types } from '../components/ui';
+import { CustomSampleList } from '../components/CustomSamples';
 
 const PAGE = 50;
 
@@ -141,6 +142,8 @@ export function MetaPage() {
           </div>
         )}
       </Card>
+
+      <CustomSampleList />
     </>
   );
 }
