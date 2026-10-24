@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { ATTRIBUTION } from './config.js';
 import { CalcInputError, runCalc, type SideInput } from './calc/champions.js';
 import { megaInfo, usageKey } from './calc/forms.js';
-import { getLearnset, getRanking, getTrend, getUsage, NotFoundError } from './data/battleData.js';
+import { buildFor, natureRole, roleBuild, spreadRole } from './calc/roles.js';
+import { getLearnset, getRanking, getTrend, getUsage, NotFoundError, type Format } from './data/battleData.js';
 import { toID } from '@smogon/calc';
 import { NameError, toEnglish, toKorean, type Kind } from './i18n.js';
 
@@ -48,9 +49,10 @@ const sideSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'Fill any omitted nature/sp/item/ability with the most used option from current Singles ladder data. ' +
-        'Each field is picked independently (the data has no combinations), so the result approximates a ' +
-        'typical set rather than one players are confirmed to use.',
+      'Fill any omitted nature/sp/item/ability from current ladder data (the format argument picks Singles or ' +
+        'Doubles). Item and ability are the most used ones; nature and SP are the most used of the same ' +
+        'physical/special build, matching the given nature or SP, else the held form. The data has no ' +
+        'combinations, so the result approximates a typical set rather than one players are confirmed to use.',
     ),
   nature: z.string().optional().describe(`${NAME_HINT}, e.g. "Jolly" or "명랑"`),
   sp: spSchema.optional(),
@@ -89,7 +91,10 @@ const sideSchema = z.object({
 
 type SideArgs = z.infer<typeof sideSchema>;
 
-async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side: SideInput; filled: string[] }> {
+async function resolveSide(
+  { useCommonSet, ...input }: SideArgs,
+  format: Format,
+): Promise<{ side: SideInput; filled: string[] }> {
   const side: SideInput = {
     ...input,
     name: toEnglish('species', input.name),
@@ -98,7 +103,7 @@ async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side
     ability: input.ability && toEnglish('abilities', input.ability),
   };
   if (!useCommonSet) return { side, filled: [] };
-  const usage = await getUsage(usageKey(side.name));
+  const usage = await getUsage(usageKey(side.name), format);
   const filled: string[] = [];
   const pick = <T>(current: T | undefined, top: T | undefined, label: string) => {
     if (current !== undefined || top === undefined) return current;
@@ -108,12 +113,18 @@ async function resolveSide({ useCommonSet, ...input }: SideArgs): Promise<{ side
   // The ladder entry is the base Pokemon's. A mega form holds its own stone and has one fixed
   // ability, so neither comes from the base Pokemon's most used options.
   const mega = megaInfo(side.name);
+  const item = pick(side.item, mega ? mega.stone : usage.items[0]?.name, 'item');
+  // Nature and spread come from one physical/special build: the given one's role, else the form's.
+  const build =
+    side.nature !== undefined ? roleBuild(usage, natureRole(side.nature))
+    : side.sp !== undefined ? roleBuild(usage, spreadRole({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0, ...side.sp }))
+    : buildFor(side.name, item, usage);
   return {
     side: {
       ...side,
-      nature: pick(side.nature, usage.natures[0]?.name, 'nature'),
-      sp: pick(side.sp, usage.spreads[0]?.sp, 'sp'),
-      item: pick(side.item, mega ? mega.stone : usage.items[0]?.name, 'item'),
+      nature: pick(side.nature, build.nature || undefined, 'nature'),
+      sp: pick(side.sp, usage.spreads.length ? build.sp : undefined, 'sp'),
+      item,
       ability: mega ? side.ability : pick(side.ability, usage.abilities[0]?.name, 'ability'),
     },
     filled,
@@ -261,6 +272,10 @@ export function registerTools(server: McpServer): void {
         defender: sideSchema,
         move: z.string().describe(`Move, ${NAME_HINT}, e.g. "Earthquake" or "지진"`),
         isCrit: z.boolean().optional(),
+        format: z
+          .enum(['Singles', 'Doubles'])
+          .default('Singles')
+          .describe('Ladder whose usage data useCommonSet fills from'),
         field: z
           .object({
             weather: z.enum(['Sun', 'Rain', 'Sand', 'Snow']).optional(),
@@ -277,7 +292,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: READ_ONLY,
     },
-    async ({ attacker, defender, move, isCrit, field }) => {
+    async ({ attacker, defender, move, isCrit, format, field }) => {
       try {
         const moveName = toEnglish('moves', move);
         // The learnset only adds a warning, so a failed lookup must not sink the calc.
@@ -285,8 +300,8 @@ export function registerTools(server: McpServer): void {
         // has attached handlers (which would leave the other lookups as unhandled rejections).
         const lookupLearnset = async () => getLearnset(usageKey(toEnglish('species', attacker.name)));
         const [a, d, learnset] = await Promise.all([
-          resolveSide(attacker),
-          resolveSide(defender),
+          resolveSide(attacker, format),
+          resolveSide(defender, format),
           lookupLearnset().catch(() => null),
         ]);
         const result = runCalc({ attacker: a.side, defender: d.side, move: moveName, isCrit, field });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface AsyncState<T> {
   data?: T;
@@ -32,6 +32,36 @@ function readStored<T>(key: string, initial: T): T {
   } catch {
     return initial;
   }
+}
+
+const SHARED_EVENT = 'pochamps:shared-state';
+
+/**
+ * useStoredState whose value every component using the same key sees at once, e.g. the
+ * Singles/Doubles choice shared by the meta page and every meta comparison.
+ */
+export function useSharedStoredState<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => readStored(key, initial));
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ key: string; value: T }>).detail;
+      if (detail.key === key) setValue(detail.value);
+    };
+    window.addEventListener(SHARED_EVENT, onChange);
+    return () => window.removeEventListener(SHARED_EVENT, onChange);
+  }, [key]);
+  const set = useCallback(
+    (next: T) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      window.dispatchEvent(new CustomEvent(SHARED_EVENT, { detail: { key, value: next } }));
+    },
+    [key],
+  );
+  return [value, set] as const;
 }
 
 export function useStoredState<T>(key: string, initial: T | (() => T)) {

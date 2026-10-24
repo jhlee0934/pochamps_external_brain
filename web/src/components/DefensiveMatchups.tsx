@@ -40,6 +40,11 @@ export function DefensiveMatchups({ species, usage, format = 'Singles' }: { spec
   );
   const groups = [...new Set(TYPES.map((type) => defensiveMultiplier(type, types, ability, fullHp)))].sort((a, b) => b - a);
   const threatGroups = [...new Set(threats.flatMap((row) => row.moves.map((move) => move.multiplier)))].sort((a, b) => b - a);
+  // Multipliers whose list is folded; every group starts open.
+  const [folded, setFolded] = useState<number[]>([]);
+  const allFolded = threatGroups.length > 0 && threatGroups.every((value) => folded.includes(value));
+  const setGroupOpen = (value: number, open: boolean) =>
+    setFolded((current) => (open ? current.filter((v) => v !== value) : current.includes(value) ? current : [...current, value]));
 
   return (
     <>
@@ -70,6 +75,7 @@ export function DefensiveMatchups({ species, usage, format = 'Singles' }: { spec
       <Card title="약점을 찌르는 메타 포켓몬">
         <div className="toolbar">
           <Segmented label="약점 상대 메타 범위" value={count} onChange={setCount} options={[{ value: '30', label: '상위 30' }, { value: '50', label: '상위 50' }, { value: '100', label: '상위 100' }]} />
+          {threatGroups.length > 0 && <button type="button" className="btn btn-small" onClick={() => setFolded(allFolded ? [] : threatGroups)}>{allFolded ? '모두 펼치기' : '모두 접기'}</button>}
           <label className="check">기술 채용률<select className="input input-small" aria-label="약점 기술 최소 채용률" value={minimumPct} onChange={(event) => setMinimumPct(event.target.value)}>{['5', '10', '20'].map((value) => <option key={value} value={value}>{value}% 이상</option>)}</select></label>
         </div>
         <p className="fine coverage-note">{format === 'Singles' ? '싱글' : '더블'} 순위권 포켓몬이 채용한 공격 기술 중, 선택한 특성 조건에서 1배를 초과하는 기술을 표시합니다. 숫자는 각 기술의 채용률이며 동시에 사용하는 조합이나 승률을 뜻하지 않습니다.</p>
@@ -77,13 +83,13 @@ export function DefensiveMatchups({ species, usage, format = 'Singles' }: { spec
         <ErrorNote error={sample.error} />
         {currentSample && currentSample.failed > 0 && <p className="error-note" role="status">샘플 {currentSample.total}마리 중 {currentSample.failed}마리의 데이터를 불러오지 못했습니다. 아래는 조회에 성공한 포켓몬만 포함합니다.</p>}
         {currentSample && !sample.loading && <div className="weakness-threats">
-          {threatGroups.map((value) => <section key={value} className="weakness-threat-group">
-            <h3>{multiplierLabel(value)}배 약점 <span className="muted small">{threats.filter((row) => row.moves.some((move) => move.multiplier === value)).length}마리</span></h3>
+          {threatGroups.map((value) => <details key={value} className="weakness-threat-group" open={!folded.includes(value)} onToggle={(event) => setGroupOpen(value, event.currentTarget.open)}>
+            <summary><h3>{multiplierLabel(value)}배 약점 <span className="muted small">{threats.filter((row) => row.moves.some((move) => move.multiplier === value)).length}마리</span></h3></summary>
             <ul className="weakness-threat-list">{threats.filter((row) => row.moves.some((move) => move.multiplier === value)).map(({ target, moves }) => <li key={target.key}>
               <Link className="mon-link" to={`/pokemon/${encodeURIComponent(battleSpecies(target.set))}?format=${format}`}><span className="muted small">{target.rank}위</span><Sprite species={battleSpecies(target.set)} size={32} /><strong>{ko('species', battleSpecies(target.set))}</strong></Link>
               <div className="weakness-moves">{moves.filter((move) => move.multiplier === value).map((move) => <span key={move.name} className="weakness-move"><TypeBadge type={move.type} /><span>{ko('moves', move.name)}</span><strong>{move.pct}%</strong></span>)}</div>
             </li>)}</ul>
-          </section>)}
+          </details>)}
           {!threats.length && <p className="muted empty">조회한 범위에서 조건에 맞는 약점 공격 기술이 없습니다.</p>}
         </div>}
         <p className="fine">메가폼은 도구 채용률로 구분하며 기술 통계는 기본 포켓몬과 공유합니다. 상대는 폼별 인기 특성을 가정합니다. 타입 변환·틀깨기·방탄·방음·선공기 차단·접촉 및 소리 기술 반감을 반영합니다. 방어 실수치·위력·도구·날씨·필드·급소는 제외한 상성 비교이며, 실제 데미지와 확정수는 계산기로 확인하세요.</p>

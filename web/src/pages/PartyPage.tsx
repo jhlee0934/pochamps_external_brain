@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { gen, ko, toID } from '../lib/data';
 import { useAsync, useStoredState } from '../lib/hooks';
 import { newParty, useParty } from '../lib/party';
-import { loadMetaTargets, type MetaTarget } from '../lib/meta';
+import { FORMAT_OPTIONS, loadMetaTargets, roleLabel, useMetaFormat, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
 import { exportTeam, importTeam } from '../lib/showdown';
 import { multiplier, multiplierLabel, TYPES } from '../lib/typechart';
@@ -70,6 +70,7 @@ interface SpeedEntry {
   /** Choice Scarf usage % when this row is the scarf variant of a meta Pokemon. */
   scarfPct?: number | null;
   share?: number;
+  role?: MetaTarget['role'];
   /** Set when this row is a meta Pokemon after a speed-raising move. */
   boost?: { move: string; stages: number; pct: number | null };
 }
@@ -84,8 +85,9 @@ const SETUP_MIN_PCT = 10;
 
 interface MetaSpeedRow {
   set: PokemonSet;
-  /** Form share (mega stone usage) when the ladder entry has several forms. */
+  /** Build share when the ladder entry has several builds (forms, physical / special). */
   share?: number;
+  role?: MetaTarget['role'];
   scarfRow?: { set: PokemonSet; pct: number | null };
   setups: { move: string; stages: number; pct: number | null }[];
 }
@@ -95,7 +97,8 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   // Setup moves are off by default: one row per move per Pokemon adds up quickly.
   const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.speed.setup', []);
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.speed.count', '50');
-  const targets = useAsync(() => loadMetaTargets(Number(count)), [count]);
+  const [format, setFormat] = useMetaFormat();
+  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
   // Base rows exclude Scarf, including when it is the most popular item.
   // The toggle adds every Scarf row; setup rows use the same unscarfed base.
   const meta = useMemo(() => {
@@ -118,6 +121,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
         rows.push({
           set: isScarf ? { ...f.set, item: '' } : f.set,
           share: f.share,
+          role: f.role,
           scarfRow: isScarf
             ? { set: f.set, pct: usage.items.find((item) => item.name === SCARF)?.pct ?? null }
             : i === 0 && scarf && !hasScarf ? { set: { ...f.set, item: SCARF }, pct: scarf.pct } : undefined,
@@ -139,13 +143,13 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
   const rows = useMemo(() => {
     const out: SpeedEntry[] = members.map((m) => ({ set: m, mine: true, speed: effectiveSpeed(m) ?? 0 }));
     for (const r of meta.data ?? []) {
-      out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set) ?? 0, share: r.share });
+      out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set) ?? 0, share: r.share, role: r.role });
       if (showScarf && r.scarfRow) {
-        out.push({ set: r.scarfRow.set, mine: false, speed: effectiveSpeed(r.scarfRow.set) ?? 0, scarfPct: r.scarfRow.pct });
+        out.push({ set: r.scarfRow.set, mine: false, speed: effectiveSpeed(r.scarfRow.set) ?? 0, scarfPct: r.scarfRow.pct, role: r.role });
       }
       for (const s of r.setups) {
         if (!setupOn.includes(s.move)) continue;
-        out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set, true, s.stages) ?? 0, boost: s, share: r.share });
+        out.push({ set: r.set, mine: false, speed: effectiveSpeed(r.set, true, s.stages) ?? 0, boost: s, share: r.share, role: r.role });
       }
     }
     return out.sort((a, b) => b.speed - a.speed);
@@ -160,6 +164,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
       <div className="speed-head">
         <div className="toggle-row">
           <span className="toggle-label">샘플</span>
+          <Segmented label="배틀 형식" value={format} onChange={setFormat} options={FORMAT_OPTIONS} />
           <Segmented
             label="메타 샘플 범위"
             value={count}
@@ -207,7 +212,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
             <span className="speed-value">{r.speed}</span>
             <Sprite species={battleSpecies(r.set)} size={28} />
             <span className="grow">
-              {ko('species', battleSpecies(r.set))}
+              {ko('species', battleSpecies(r.set))}{roleLabel(r)}
               {r.share != null && !r.boost && <span className="muted small"> 비중 {r.share}%</span>}
               {toID(r.set.item) === 'choicescarf' && (
                 <span className="chip small scarf">스카프{r.scarfPct != null && ` ${r.scarfPct}%`}</span>

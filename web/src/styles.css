@@ -846,7 +846,9 @@ a.mon-link:hover strong {
 
 .defense-condition { margin-bottom: 12px; }
 .weakness-threats { display: grid; gap: 16px; }
-.weakness-threat-group h3 { margin: 0 0 8px; font-size: 14px; }
+.weakness-threat-group h3 { display: inline; margin: 0; font-size: 14px; }
+.weakness-threat-group > summary { cursor: pointer; margin-bottom: 8px; }
+.weakness-threat-group:not([open]) > summary { margin-bottom: 0; }
 .weakness-threat-list { list-style: none; margin: 0; padding: 0; }
 .weakness-threat-list > li { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .weakness-threat-list > li:last-child { border-bottom: 0; }

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { categoryKo, ko } from '../lib/data';
 import { autoWeather, movePower, type CalcField, type MoveResult } from '../lib/calc';
 import { useAsync, useStoredState } from '../lib/hooks';
-import { loadMetaTargets, shareLabel, type MetaTarget } from '../lib/meta';
+import { FORMAT_OPTIONS, formatKo, loadMetaTargets, shareLabel, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
 import { battleSpecies, newSet, type PokemonSet, type SideExtras } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
 import type { CoverageRequest, CoverageResult } from '../workers/coverage.worker';
@@ -46,7 +46,8 @@ export function MetaCoverage({
   onPick: (defender: PokemonSet) => void;
 }) {
   const [count, setCount] = useStoredState<'30' | '50' | '100'>('pochamps.coverage.count', '30');
-  const targets = useAsync(() => loadMetaTargets(Number(count)), [count]);
+  const [format, setFormat] = useMetaFormat();
+  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
   const request = useMemo<CoverageRequest | null>(
     () => (targets.data && attacker.species ? { attacker, extras, field, isCrit, targets: targets.data } : null),
     [targets.data, attacker, extras, field, isCrit],
@@ -83,20 +84,23 @@ export function MetaCoverage({
     <Card
       title="메타 상대 결정력 범위"
       actions={
-        <Segmented
-          label="상대 범위"
-          value={count}
-          onChange={setCount}
-          options={[
-            { value: '30', label: '상위 30' },
-            { value: '50', label: '상위 50' },
-            { value: '100', label: '상위 100' },
-          ]}
-        />
+        <div className="row gap">
+          <Segmented label="배틀 형식" value={format} onChange={setFormat} options={FORMAT_OPTIONS} />
+          <Segmented
+            label="상대 범위"
+            value={count}
+            onChange={setCount}
+            options={[
+              { value: '30', label: '상위 30' },
+              { value: '50', label: '상위 50' },
+              { value: '100', label: '상위 100' },
+            ]}
+          />
+        </div>
       }
     >
       <p className="fine coverage-note">
-        방어 측을 정하지 않아도, 싱글 메타 상위 포켓몬(사용률 1위 성격·SP·도구, 메가스톤이면 메가진화)을 상대로 기술마다 몇 타에
+        방어 측을 정하지 않아도, {formatKo(format)} 메타 상위 포켓몬(물리형·특수형별 인기 성격·SP·기술과 도구, 메가스톤이면 메가진화)을 상대로 기술마다 몇 타에
         잡는지 보여줍니다. 위의 날씨·필드·해저드·급소 설정이 그대로 적용되고, 날씨를 고르지 않으면 가뭄·모래날림 같은 날씨 특성(공격 측 우선)이 자동으로 적용됩니다. 아이콘을 누르면 방어 측으로 설정합니다.
       </p>
       {targets.loading && !targets.data && <Loading label="메타 포켓몬 세팅을 불러오는 중…" />}
@@ -139,7 +143,7 @@ export function MetaCoverage({
                 <span className={`coverage-label count-${b.key}`}>{b.label}</span>
                 <div className="coverage-mons">
                   {row.groups[b.key].map(({ result, target }) => {
-                    const name = ko('species', battleSpecies(target.set));
+                    const name = targetName(target);
                     return (
                       <button
                         type="button"

@@ -2,6 +2,7 @@ import { Pokemon } from '@smogon/calc';
 import type { SideInput, Stacks } from '@shared/calc/champions';
 import { SP_MAX_PER_STAT, SP_MAX_TOTAL } from '@shared/calc/champions';
 import { megaInfo, megaOptions, type MegaInfo } from '@shared/calc/forms';
+import { buildFor } from '@shared/calc/roles';
 import { gen, toID, type StatPoints, type UsageSummary } from './data';
 
 export { SP_MAX_PER_STAT, SP_MAX_TOTAL };
@@ -69,19 +70,20 @@ export function battleSpecies(set: PokemonSet, mega = true): string {
 }
 
 /**
- * Most used option per field. Fields are independent in the data, so this approximates a real set.
+ * Most used option per field. Fields are independent in the data, so this approximates a real set;
+ * nature, spread and moves come from the same physical/special build so they match each other.
  * Passing a mega form keeps it: the set gets the base species holding that mega's stone.
  */
 export function commonSet(species: string, usage: UsageSummary): PokemonSet {
   const mega = megaInfo(species);
-  const moves = usage.moves.slice(0, 4).map((m) => m.name);
-  while (moves.length < 4) moves.push('');
+  const item = mega?.stone ?? usage.items[0]?.name ?? '';
+  const { nature, sp, moves } = buildFor(species, item, usage);
   return {
     species: mega?.base ?? species,
-    item: mega?.stone ?? usage.items[0]?.name ?? '',
+    item,
     ability: usage.abilities[0]?.name ?? defaultAbility(mega?.base ?? species),
-    nature: usage.natures[0]?.name ?? '',
-    sp: usage.spreads[0]?.sp ?? emptySp(),
+    nature,
+    sp,
     moves,
   };
 }

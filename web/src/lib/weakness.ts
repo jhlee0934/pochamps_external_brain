@@ -18,7 +18,13 @@ export async function loadWeaknessSample(count: number, format: Format) {
       const entry = entries[index];
       try {
         const usage = await getUsage(usageKey(entry.pokemon), format);
-        rows[index] = metaVariants(entry.pokemon, usage).map((variant) => ({
+        // Type matchups depend on the form, not on its physical/special build: one row per form.
+        const forms = new Map<string, ReturnType<typeof metaVariants>[number]>();
+        for (const variant of metaVariants(entry.pokemon, usage)) {
+          const form = battleSpecies(variant.set);
+          if (!forms.has(form)) forms.set(form, { ...variant, role: undefined });
+        }
+        rows[index] = [...forms.values()].map((variant) => ({
           ...variant, rank: entry.rank, key: targetKey(entry.rank, variant.set), usage,
         }));
       } catch {

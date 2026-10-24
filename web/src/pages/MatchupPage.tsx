@@ -5,7 +5,7 @@ import { koTextKo, type MoveResult } from '../lib/calc';
 import { useStoredState } from '../lib/hooks';
 import { withRo } from '../lib/korean';
 import { useParty } from '../lib/party';
-import { loadMetaTargets } from '../lib/meta';
+import { FORMAT_OPTIONS, formatKo, loadMetaTargets, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, type PokemonSet } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
 import type { BenchmarkRequest, BenchmarkResult } from '../workers/benchmark.worker';
@@ -15,8 +15,9 @@ interface Row {
   key: string;
   rank: number;
   set: PokemonSet;
-  /** Form share when the ladder entry has several forms (Mega X / Mega Y / base). */
+  /** Build share when the ladder entry has several builds (Mega X / Mega Y / base, physical / special). */
   share?: number;
+  role?: MetaTarget['role'];
   offense?: MoveResult;
   defense?: MoveResult;
   mySpeed: number;
@@ -56,6 +57,9 @@ export function MatchupPage() {
   const navigate = useNavigate();
   const [index, setIndex] = useStoredState('pochamps.matchup.member', 0);
   const [count, setCount] = useStoredState<'20' | '30' | '50'>('pochamps.matchup.count', '30');
+  const [format, setFormat] = useMetaFormat();
+  // The format the shown results were computed for; changing the toggle waits for the button.
+  const [computedFormat, setComputedFormat] = useState(format);
   // Set by the button; the worker runs whenever it changes. Results stay tied to job.me, so
   // picking another member doesn't relabel them.
   const [job, setJob] = useState<BenchmarkRequest | null>(null);
@@ -72,7 +76,8 @@ export function MatchupPage() {
     setLoading(true);
     try {
       // One target per form, so Mega Charizard X and Y are judged separately.
-      setJob({ me, targets: await loadMetaTargets(Number(count)) });
+      setJob({ me, targets: await loadMetaTargets(Number(count), format) });
+      setComputedFormat(format);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -92,6 +97,7 @@ export function MatchupPage() {
         rank: t.rank,
         set: t.set,
         share: t.share,
+        role: t.role,
         offense,
         defense,
         mySpeed,
@@ -113,7 +119,7 @@ export function MatchupPage() {
       <div className="page-head">
         <div>
           <h1>메타 대면표</h1>
-          <p className="muted">내 포켓몬 하나와 싱글 메타 상위 포켓몬의 1:1 대면을 한 번에 계산합니다.</p>
+          <p className="muted">내 포켓몬 하나와 싱글·더블 메타 상위 포켓몬의 1:1 대면을 한 번에 계산합니다.</p>
         </div>
       </div>
 
@@ -142,6 +148,7 @@ export function MatchupPage() {
               ))}
             </div>
             <div className="row gap">
+              <Segmented label="배틀 형식" value={format} onChange={setFormat} options={FORMAT_OPTIONS} />
               <Segmented
                 label="상대 수"
                 value={count}
@@ -158,7 +165,7 @@ export function MatchupPage() {
             </div>
           </div>
           <p className="fine">
-            상대는 사용률 1위 성격·SP·도구·특성과 상위 기술 4개로 가정하고, 메가스톤을 들었으면 메가진화 상태로 계산합니다. 판정은 확정
+            상대는 물리형·특수형별 인기 성격·SP·기술 4개와 사용률 1위 도구·특성으로 가정하고, 비주류 공격형은 (특수)·(물리)로 따로 표시합니다. 메가스톤을 들었으면 메가진화 상태로 계산합니다. 판정은 확정
             타수가 적은 쪽, 같으면 빠른 쪽이 유리입니다. 교체·보조기·랭크업은 반영하지 않습니다.
           </p>
           {error && <p className="error-note">{error}</p>}
@@ -172,7 +179,7 @@ export function MatchupPage() {
 
       {rows && summary && computedFor && (
         <Card
-          title={`${ko('species', battleSpecies(computedFor))} 대면 결과`}
+          title={`${ko('species', battleSpecies(computedFor))} 대면 결과 · ${formatKo(computedFormat)}`}
           actions={
             <span className="verdict-summary">
               <span className="verdict good">유리 {summary.good}</span>
@@ -206,7 +213,7 @@ export function MatchupPage() {
                       <span className="mon-link">
                         <Sprite species={battleSpecies(r.set)} size={32} />
                         <span>
-                          <strong>{ko('species', battleSpecies(r.set))}</strong>
+                          <strong>{targetName(r)}</strong>
                           <span className="en">
                             {ko('items', r.set.item)}
                             {r.share != null && ` · 비중 ${r.share}%`}

@@ -3,7 +3,7 @@ import { ko } from '../lib/data';
 import type { MoveResult } from '../lib/calc';
 import { useAsync, useStoredState } from '../lib/hooks';
 import { withEul, withRo } from '../lib/korean';
-import { loadMetaTargets, shareLabel, type MetaTarget } from '../lib/meta';
+import { FORMAT_OPTIONS, formatKo, loadMetaTargets, shareLabel, targetName, useMetaFormat, type MetaTarget } from '../lib/meta';
 import { battleSpecies, effectiveSpeed, SP_MAX_PER_STAT, SP_MAX_TOTAL, spTotal, type PokemonSet } from '../lib/sets';
 import { useWorkerJob } from '../lib/workerJob';
 import type { BenchmarkRequest, BenchmarkResult, BenchmarkRow } from '../workers/benchmark.worker';
@@ -27,7 +27,7 @@ function defTier(r: MoveResult | undefined): DefTier {
   return r.koText?.startsWith('guaranteed') ? 'ko' : 'chance';
 }
 
-const monName = (t: MetaTarget) => ko('species', battleSpecies(t.set));
+const monName = (t: MetaTarget) => targetName(t);
 const monNameShare = (t: MetaTarget) => `${monName(t)}${shareLabel(t)}`;
 const withNature = (t: MetaTarget) => `${t.set.nature ? `${ko('natures', t.set.nature)} ` : ''}${monName(t)}`;
 const pctRange = (r: MoveResult) => `${r.minPercent}–${r.maxPercent}%`;
@@ -99,7 +99,8 @@ function MonIcon({ t, title }: { t: MetaTarget; title: string }) {
  */
 export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baselineKey: string }) {
   const [count, setCount] = useStoredState<'30' | '50'>('pochamps.bench.count', '30');
-  const targets = useAsync(() => loadMetaTargets(Number(count)), [count]);
+  const [format, setFormat] = useMetaFormat();
+  const targets = useAsync(() => loadMetaTargets(Number(count), format), [count, format]);
   const request = useMemo<BenchmarkRequest | null>(
     () => (set.species && targets.data ? { me: set, targets: targets.data } : null),
     [set, targets.data],
@@ -161,19 +162,22 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
       title="SP 배분 효과"
       className="bench"
       actions={
-        <Segmented
-          label="메타 샘플"
-          value={count}
-          onChange={setCount}
-          options={[
-            { value: '30', label: '상위 30' },
-            { value: '50', label: '상위 50' },
-          ]}
-        />
+        <div className="row gap">
+          <Segmented label="배틀 형식" value={format} onChange={setFormat} options={FORMAT_OPTIONS} />
+          <Segmented
+            label="메타 샘플"
+            value={count}
+            onChange={setCount}
+            options={[
+              { value: '30', label: '상위 30' },
+              { value: '50', label: '상위 50' },
+            ]}
+          />
+        </div>
       }
     >
       <p className="fine bench-note">
-        싱글 메타 상위 포켓몬의 사용률 1위 세팅(성격·SP·도구, 메가스톤이면 메가진화)을 샘플로, 지금 배분으로 누구를 잡고 누구의 공격을
+        {formatKo(format)} 메타 상위 포켓몬의 인기 세팅(물리형·특수형별 인기 성격·SP·기술과 도구, 메가스톤이면 메가진화)을 샘플로, 지금 배분으로 누구를 잡고 누구의 공격을
         버티는지 보여줍니다. 기술·도구를 바꿔도 바로 다시 계산합니다.
       </p>
       {error && <p className="error-note">계산 중 오류가 났습니다: {error}</p>}

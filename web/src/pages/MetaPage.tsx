@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getRanking, ko, toID, type Format } from '../lib/data';
-import { useAsync, useStoredState } from '../lib/hooks';
+import { useAsync } from '../lib/hooks';
+import { FORMAT_OPTIONS, useMetaFormat } from '../lib/meta';
 import { TYPES } from '../lib/typechart';
 import { Card, ErrorNote, Loading, Segmented, Sprite, TypeBadge, Types } from '../components/ui';
 
@@ -9,7 +10,7 @@ const PAGE = 50;
 
 export function MetaPage() {
   const [params, setParams] = useSearchParams();
-  const [storedFormat, setStoredFormat] = useStoredState<Format>('pochamps.meta.format', 'Singles');
+  const [storedFormat, setStoredFormat] = useMetaFormat();
   const requestedFormat = params.get('format');
   const format = requestedFormat === 'Singles' || requestedFormat === 'Doubles' ? requestedFormat : storedFormat;
   const [query, setQuery] = useState('');
@@ -58,10 +59,7 @@ export function MetaPage() {
           label="배틀 형식"
           value={format}
           onChange={setFormat}
-          options={[
-            { value: 'Singles', label: '싱글' },
-            { value: 'Doubles', label: '더블' },
-          ]}
+          options={FORMAT_OPTIONS}
         />
       </div>
 
