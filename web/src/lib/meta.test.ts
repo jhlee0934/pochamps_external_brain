@@ -8,9 +8,10 @@ import {
   combineBoosts,
   effectiveSpeed,
   groupBySpeed,
+  magicNumbers,
   SETUP_BOOSTS,
   sameSp,
-  setupMovesOf,
+  setupSourcesOf,
   spShort,
   SPEED_SETUP,
   withSetups,
@@ -138,8 +139,8 @@ describe('party presets', () => {
 
 describe('my setup moves', () => {
   it('are the setup moves in my own move slots', () => {
-    expect(setupMovesOf(set('Garchomp', ['Earthquake', 'Swords Dance', '', 'Rock Polish']))).toEqual(['Swords Dance', 'Rock Polish']);
-    expect(setupMovesOf(set('Garchomp', ['Earthquake', 'Outrage', '', '']))).toEqual([]);
+    expect(setupSourcesOf(set('Garchomp', ['Earthquake', 'Swords Dance', '', 'Rock Polish']))).toEqual(['Swords Dance', 'Rock Polish']);
+    expect(setupSourcesOf(set('Garchomp', ['Earthquake', 'Outrage', '', '']))).toEqual([]);
   });
 
   it('add up their stages, within ±6', () => {
@@ -183,5 +184,66 @@ describe('SP presets', () => {
     const a = { hp: 2, atk: 32, def: 0, spa: 0, spd: 0, spe: 32 };
     expect(sameSp(a, { ...a })).toBe(true);
     expect(sameSp(a, { ...a, hp: 3 })).toBe(false);
+  });
+});
+
+describe('ability rank-ups', () => {
+  it('count one activation, even for abilities that keep stacking', () => {
+    expect(combineBoosts(['Speed Boost'])).toEqual({ spe: 1 });
+    expect(combineBoosts(['Stamina'])).toEqual({ def: 1 });
+    expect(combineBoosts(['Weak Armor'])).toEqual({ def: -1, spe: 2 });
+  });
+
+  it("join a set's setup sources, after its moves", () => {
+    const blaziken = { ...set('Blaziken', ['Swords Dance', 'Flare Blitz']), ability: 'Speed Boost' };
+    expect(setupSourcesOf(blaziken)).toEqual(['Swords Dance', 'Speed Boost']);
+  });
+
+  it("use the mega's own ability: Mega Blaziken gets Speed Boost", () => {
+    const blaziken = { ...set('Blaziken', ['Flare Blitz'], 'Blazikenite'), ability: 'Blaze' };
+    expect(setupSourcesOf(blaziken)).toEqual(['Speed Boost']);
+    expect(setupSourcesOf(blaziken, { mega: false })).toEqual([]);
+  });
+
+  it('count for ladder targets with the ability they battle with', () => {
+    const t: MetaTarget = {
+      key: '1-x',
+      rank: 1,
+      set: { ...set('Blaziken', ['Protect']), ability: 'Speed Boost' },
+      usage: usage('Blaziken', { moves: [['Protect', 80]], abilities: [['Speed Boost', 95]] }),
+    };
+    expect(setupsOf(t)).toEqual([{ move: 'Speed Boost', pct: 95 }]);
+    expect(withBoosted([t], ['Speed Boost'])[1].boosts).toEqual({ spe: 1 });
+  });
+
+  it('show in Speed setup and calculator toggles', () => {
+    expect(SPEED_SETUP.speedboost).toBe(1);
+    const lucario = { ...set('Lucario', ['Close Combat']), ability: 'Justified' };
+    expect(withSetups(lucario, { setups: ['Justified'] }).boosts).toEqual({ atk: 1 });
+  });
+});
+
+describe('magic numbers', () => {
+  const chomp = (nature: string) => ({ ...set('Garchomp', []), nature });
+
+  it('mark where a raised stat gains its bonus point', () => {
+    expect(magicNumbers(chomp('Adamant'), 'atk')).toEqual({ kind: 'up', values: [10, 20, 30] });
+    expect(magicNumbers(chomp('Jolly'), 'spe')).toEqual({ kind: 'up', values: [8, 18, 28] });
+  });
+
+  it('mark the last SP before a wasted point on a lowered stat', () => {
+    expect(magicNumbers(chomp('Modest'), 'atk')).toEqual({ kind: 'down', values: [10, 20, 30] });
+  });
+
+  it('do not exist where the nature changes nothing', () => {
+    expect(magicNumbers(chomp('Adamant'), 'spe')).toBeUndefined();
+    expect(magicNumbers(chomp('Hardy'), 'atk')).toBeUndefined();
+    expect(magicNumbers(chomp(''), 'atk')).toBeUndefined();
+  });
+
+  it('follow the mega form when it battles as one', () => {
+    // Base Attack 84 vs 130 for Mega Charizard X: the bonus points land on different SP.
+    const mega = { ...set('Charizard', []), nature: 'Adamant', item: 'Charizardite X' };
+    expect(magicNumbers(mega, 'atk')).not.toEqual(magicNumbers(mega, 'atk', false));
   });
 });

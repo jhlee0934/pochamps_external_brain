@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   abilityOptionsFor,
   gen,
@@ -12,10 +12,13 @@ import {
   toID,
   usageKey,
 } from '../lib/data';
+import { movePower } from '../lib/calc';
 import { useAsync } from '../lib/hooks';
 import {
   commonSet,
+  battleSpecies,
   defaultAbility,
+  magicNumbers,
   megaForm,
   megaLabel,
   megaOptions,
@@ -37,6 +40,13 @@ export function SpEditor({ set, onChange, mega = true }: { set: PokemonSet; onCh
   const total = spTotal(set.sp);
   const stats = statsOf(set, mega);
   const nature = set.nature ? gen.natures.get(toID(set.nature)) : undefined;
+  // Magic numbers depend on the battling species and nature only, not on the other SP.
+  const species = battleSpecies(set, mega);
+  const magic = useMemo(
+    () => Object.fromEntries(STATS.map((s) => [s, magicNumbers({ ...set, sp: { ...set.sp } }, s, mega)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [species, set.nature, mega],
+  );
   // Each stat can only take what the 66-point total has left.
   const setSp = (stat: (typeof STATS)[number], raw: number) => {
     const room = SP_MAX_TOTAL - (total - set.sp[stat]);
@@ -54,8 +64,10 @@ export function SpEditor({ set, onChange, mega = true }: { set: PokemonSet; onCh
       </div>
       {STATS.map((s) => {
         const mark = nature && nature.plus !== nature.minus ? (nature.plus === s ? 'up' : nature.minus === s ? 'down' : '') : '';
+        const m = magic[s];
         return (
-          <div className="sp-row" key={s}>
+          <Fragment key={s}>
+          <div className="sp-row">
             <label htmlFor={`${uid}-${s}`} className={`sp-label ${mark}`}>
               {STAT_LABEL[s]}
               {mark === 'up' ? ' ↑' : mark === 'down' ? ' ↓' : ''}
@@ -80,6 +92,32 @@ export function SpEditor({ set, onChange, mega = true }: { set: PokemonSet; onCh
             />
             <span className="sp-stat">{stats?.[s] ?? '–'}</span>
           </div>
+          {m && m.values.length > 0 && (
+            <div className={`sp-magic ${m.kind}`}>
+              <span
+                title={
+                  m.kind === 'up'
+                    ? '상승 보정으로 실수치가 2 오르는 SP입니다. 여기서 멈추면 보너스 1을 챙깁니다.'
+                    : '하락 보정 때문에 다음 1 SP는 실수치가 오르지 않습니다. 여기서 멈추면 낭비가 없습니다.'
+                }
+              >
+                매직 넘버
+              </span>
+              {m.values.map((v) => (
+                <button
+                  type="button"
+                  key={v}
+                  className={set.sp[s] === v ? 'sp-magic-btn active' : 'sp-magic-btn'}
+                  aria-pressed={set.sp[s] === v}
+                  onClick={() => setSp(s, v)}
+                  aria-label={`${STAT_LABEL[s]} SP ${v}`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          )}
+          </Fragment>
         );
       })}
     </div>
@@ -187,12 +225,24 @@ export function SetHeader({
   );
 }
 
+/** "결정력 32,773" for a damaging move, nothing for status moves. */
+function MovePower({ set, move }: { set: PokemonSet; move: string }) {
+  const power = movePower(set, {}, move);
+  if (!power?.power) return null;
+  return (
+    <span className="move-power" title="랭크·날씨·필드 없이 계산한 결정력입니다.">
+      결정력 <strong>{power.power.toLocaleString('ko-KR')}</strong>
+    </span>
+  );
+}
+
 export function SetEditor({
   set,
   onChange,
   title,
   showHeader = true,
   spreadPresets = false,
+  showMovePower = false,
 }: {
   set: PokemonSet;
   onChange: (s: PokemonSet) => void;
@@ -201,6 +251,8 @@ export function SetEditor({
   showHeader?: boolean;
   /** One-click SP presets from the ladder's spread table, above the SP editor. */
   spreadPresets?: boolean;
+  /** Each move's 결정력 under its field (no ranks, weather or field). */
+  showMovePower?: boolean;
 }) {
   const filler = useSetFiller(set, onChange);
   const { filling, fillError, fillCommon } = filler;
@@ -258,6 +310,7 @@ export function SetEditor({
                   value={m}
                   onChange={(move) => onChange({ ...set, moves: set.moves.map((x, j) => (j === i ? move : x)) })}
                 />
+                {showMovePower && m && <MovePower set={set} move={m} />}
               </label>
             ))}
           </div>

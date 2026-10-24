@@ -3,7 +3,19 @@ import { useMemo } from 'react';
 import { customTargets, useCustomSamples } from './custom';
 import { getRanking, getUsage, ko, toID, usageKey, type Format, type UsageSummary } from './data';
 import { useAsync, useSharedStoredState, type AsyncState } from './hooks';
-import { battleSpecies, boostText, commonSet, SETUP_BOOSTS, type Boosts, type PokemonSet } from './sets';
+import {
+  ABILITY_BOOSTS,
+  battleAbility,
+  battleSpecies,
+  boostText,
+  commonSet,
+  SETUP_BOOSTS,
+  setupBoost,
+  setupName,
+  setupSourcesOf,
+  type Boosts,
+  type PokemonSet,
+} from './sets';
 
 export interface MetaTarget {
   /** Unique per build: one ladder entry can yield several targets (Mega X, Mega Y, base, special). */
@@ -75,20 +87,27 @@ export const rankLabel = (t: { rank: number; custom?: boolean }) => (t.custom ? 
 export const SETUP_TOP = 6;
 export const SETUP_MIN_PCT = 10;
 
-/** Setup moves a target runs: its own moves for a custom sample, popular ones for a ladder entry. */
+/**
+ * Setup moves and boosting abilities a target runs: a custom sample's own, or a ladder entry's
+ * popular moves plus the ability its build battles with (a mega's own ability included).
+ */
 export function setupsOf(t: MetaTarget): { move: string; pct: number | null }[] {
-  if (t.custom) return t.set.moves.filter((m) => SETUP_BOOSTS[toID(m)]).map((move) => ({ move, pct: null }));
-  return t.usage.moves
+  if (t.custom) return setupSourcesOf(t.set).map((move) => ({ move, pct: null }));
+  const moves = t.usage.moves
     .slice(0, SETUP_TOP)
     .filter((m) => SETUP_BOOSTS[toID(m.name)] && (m.pct ?? 0) >= SETUP_MIN_PCT)
     .map((m) => ({ move: m.name, pct: m.pct }));
+  const ability = battleAbility(t.set);
+  if (!ABILITY_BOOSTS[toID(ability)]) return moves;
+  const pct = t.usage.abilities.find((a) => toID(a.name) === toID(ability))?.pct ?? null;
+  return [...moves, { move: ability, pct }];
 }
 
 /** Setup moves in a sample, with how many targets run each, most common first. */
 export function setupMoveCounts(targets: MetaTarget[], filter: (boosts: Boosts) => boolean = () => true): [string, number][] {
   const counts = new Map<string, number>();
   for (const t of targets) {
-    for (const s of setupsOf(t)) if (filter(SETUP_BOOSTS[toID(s.move)])) counts.set(s.move, (counts.get(s.move) ?? 0) + 1);
+    for (const s of setupsOf(t)) if (filter(setupBoost(s.move)!)) counts.set(s.move, (counts.get(s.move) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
@@ -100,7 +119,7 @@ export function withBoosted(targets: MetaTarget[], moves: string[]): MetaTarget[
     t,
     ...setupsOf(t)
       .filter((s) => moves.includes(s.move))
-      .map((s) => ({ ...t, key: `${t.key}+${toID(s.move)}`, boosts: SETUP_BOOSTS[toID(s.move)], boost: s })),
+      .map((s) => ({ ...t, key: `${t.key}+${toID(s.move)}`, boosts: setupBoost(s.move), boost: s })),
   ]);
 }
 
@@ -121,7 +140,7 @@ export const boostAffects = (t: { boosts?: Boosts }, aspect: BoostAspect) =>
 
 /** "칼춤 후 (공격 +2)" style label for a boosted target, empty otherwise. */
 export const boostLabel = (t: { boosts?: Boosts; boost?: { move: string } }) =>
-  t.boosts && t.boost ? `${ko('moves', t.boost.move)} 후 (${boostText(t.boosts)})` : '';
+  t.boosts && t.boost ? `${setupName(t.boost.move)} 후 (${boostText(t.boosts)})` : '';
 
 /** "(특수)" style suffix for a minority build's role, empty otherwise. */
 export const roleLabel = (t: { role?: Role }) => (t.role ? `(${ROLE_KO[t.role]})` : '');

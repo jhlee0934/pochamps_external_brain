@@ -14,8 +14,9 @@ import {
   megaForm,
   newSet,
   normalizeSet,
-  SETUP_BOOSTS,
-  setupMovesOf,
+  setupBoost,
+  setupName,
+  setupSourcesOf,
   STAT_LABEL,
   withSetups,
   type PokemonSet,
@@ -204,7 +205,7 @@ const FRESH_EXTRAS: SideExtras = { mega: true };
 
 /** One button per setup move in the side's moves; shown only when it has any. */
 function SetupToggles({ label, set, extras, onChange }: { label: string; set: PokemonSet; extras: SideExtras; onChange: (e: SideExtras) => void }) {
-  const moves = setupMovesOf(set);
+  const moves = setupSourcesOf(set, extras);
   if (!moves.length) return null;
   const on = activeSetups(set, extras);
   const toggle = (move: string) =>
@@ -219,9 +220,9 @@ function SetupToggles({ label, set, extras, onChange }: { label: string; set: Po
           className={on.includes(move) ? 'toggle-btn active' : 'toggle-btn'}
           aria-pressed={on.includes(move)}
           onClick={() => toggle(move)}
-          title={`1회 사용: ${boostText(SETUP_BOOSTS[toID(move)])}`}
+          title={`1회 사용·발동: ${boostText(setupBoost(move)!)}`}
         >
-          {ko('moves', move)}
+          {setupName(move)}
         </button>
       ))}
     </div>
@@ -232,7 +233,7 @@ const STATUS_KO: Record<string, string> = { brn: '화상', par: '마비', psn: '
 
 /** Non-default battle conditions of one side, as short Korean labels. */
 function extrasLabels(set: PokemonSet, extras: SideExtras): string[] {
-  const out: string[] = activeSetups(set, extras).map((m) => `${ko('moves', m)} 사용`);
+  const out: string[] = activeSetups(set, extras).map((m) => `${setupName(m)} 적용`);
   for (const [stat, v] of Object.entries(withSetups(set, extras).boosts ?? {})) {
     if (v) out.push(`${STAT_LABEL[stat as keyof typeof STAT_LABEL]} ${v > 0 ? '+' : ''}${v}`);
   }

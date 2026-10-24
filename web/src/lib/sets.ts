@@ -3,7 +3,7 @@ import type { SideInput, Stacks } from '@shared/calc/champions';
 import { SP_MAX_PER_STAT, SP_MAX_TOTAL } from '@shared/calc/champions';
 import { megaInfo, megaOptions, type MegaInfo } from '@shared/calc/forms';
 import { buildFor } from '@shared/calc/roles';
-import { gen, toID, type StatPoints, type UsageSummary } from './data';
+import { gen, ko, toID, type StatPoints, type UsageSummary } from './data';
 
 export { SP_MAX_PER_STAT, SP_MAX_TOTAL };
 
@@ -173,9 +173,55 @@ export const SETUP_BOOSTS: Record<string, Boosts> = {
   aquastep: { spe: 1 },
 };
 
-/** Moves that raise the user's Speed, with the number of stages one use gives. */
+/**
+ * Abilities that raise the holder's stats, with the stages of ONE activation. Ones that keep
+ * stacking (Speed Boost every turn, Stamina on every hit) count once, like a setup move used once.
+ */
+export const ABILITY_BOOSTS: Record<string, Boosts> = {
+  speedboost: { spe: 1 },
+  stamina: { def: 1 },
+  moxie: { atk: 1 },
+  chillingneigh: { atk: 1 },
+  grimneigh: { spa: 1 },
+  defiant: { atk: 2 },
+  competitive: { spa: 2 },
+  justified: { atk: 1 },
+  rattled: { spe: 1 },
+  steadfast: { spe: 1 },
+  weakarmor: { def: -1, spe: 2 },
+  steamengine: { spe: 6 },
+  watercompaction: { def: 2 },
+  berserk: { spa: 1 },
+  angerpoint: { atk: 6 },
+  angershell: { atk: 1, spa: 1, spe: 1, def: -1, spd: -1 },
+  thermalexchange: { atk: 1 },
+  windrider: { atk: 1 },
+  sapsipper: { atk: 1 },
+  motordrive: { spe: 1 },
+  stormdrain: { spa: 1 },
+  lightningrod: { spa: 1 },
+  guarddog: { atk: 1 },
+  intrepidsword: { atk: 1 },
+  dauntlessshield: { def: 1 },
+  embodyaspectteal: { spe: 1 },
+  embodyaspecthearthflame: { atk: 1 },
+  embodyaspectwellspring: { spd: 1 },
+  embodyaspectcornerstone: { def: 1 },
+};
+
+/** Stages from one use of a setup move or one activation of a boosting ability. */
+export const setupBoost = (name: string): Boosts | undefined => SETUP_BOOSTS[toID(name)] ?? ABILITY_BOOSTS[toID(name)];
+
+export const isAbilitySetup = (name: string) => !SETUP_BOOSTS[toID(name)] && !!ABILITY_BOOSTS[toID(name)];
+
+/** Korean name of a setup move or boosting ability. */
+export const setupName = (name: string) => ko(isAbilitySetup(name) ? 'abilities' : 'moves', name);
+
+/** Setup moves and abilities that raise Speed, with the stages of one use. */
 export const SPEED_SETUP: Record<string, number> = Object.fromEntries(
-  Object.entries(SETUP_BOOSTS).flatMap(([id, b]) => ((b.spe ?? 0) > 0 ? [[id, b.spe!]] : [])),
+  [...Object.entries(SETUP_BOOSTS), ...Object.entries(ABILITY_BOOSTS)].flatMap(([id, b]) =>
+    (b.spe ?? 0) > 0 ? [[id, b.spe!]] : [],
+  ),
 );
 
 /** Speed-line entries grouped per speed value, fastest first; my party leads each group. */
@@ -187,14 +233,26 @@ export function groupBySpeed<T extends { speed: number; mine: boolean }>(entries
     .map(([speed, group]) => ({ speed, entries: [...group].sort((a, b) => Number(b.mine) - Number(a.mine)) }));
 }
 
-/** A set's own setup moves, in move-slot order. */
-export const setupMovesOf = (set: PokemonSet) => set.moves.filter((m) => m && SETUP_BOOSTS[toID(m)]);
+/** The ability a set battles with: a mega's own ability, otherwise the chosen (or default) one. */
+export function battleAbility(set: PokemonSet, extras: SideExtras = {}): string {
+  const species = battleSpecies(set, extras.mega ?? true);
+  return species !== set.species ? defaultAbility(species) : set.ability || defaultAbility(species);
+}
 
-/** Stages after one use of each move, added up and kept within ±6. */
+/** A set's own setup moves (move-slot order), then its battle ability if that raises stats. */
+export function setupSourcesOf(set: PokemonSet, extras: SideExtras = {}): string[] {
+  const ability = battleAbility(set, extras);
+  return [
+    ...set.moves.filter((m) => m && SETUP_BOOSTS[toID(m)]),
+    ...(ability && ABILITY_BOOSTS[toID(ability)] ? [ability] : []),
+  ];
+}
+
+/** Stages after one use of each setup move or ability, added up and kept within ±6. */
 export function combineBoosts(moves: string[]): Boosts {
   const out: Boosts = {};
   for (const m of moves) {
-    for (const [stat, n] of Object.entries(SETUP_BOOSTS[toID(m)] ?? {}) as [keyof Boosts, number][]) {
+    for (const [stat, n] of Object.entries(setupBoost(m) ?? {}) as [keyof Boosts, number][]) {
       out[stat] = Math.max(-6, Math.min(6, (out[stat] ?? 0) + n));
     }
   }
@@ -214,9 +272,9 @@ export function spShort(sp: StatPoints): string {
 
 export const sameSp = (a: StatPoints, b: StatPoints) => STATS.every((s) => a[s] === b[s]);
 
-/** Setup moves toggled on for a set, ignoring any no longer in its move slots. */
+/** Setup moves and abilities toggled on for a set, ignoring any it no longer has. */
 export const activeSetups = (set: PokemonSet, extras: SideExtras) =>
-  setupMovesOf(set).filter((m) => extras.setups?.includes(m));
+  setupSourcesOf(set, extras).filter((m) => extras.setups?.includes(m));
 
 /** Extras with the toggled setup moves' stages added to the hand-set ranks, within ±6. */
 export function withSetups(set: PokemonSet, extras: SideExtras): SideExtras {
@@ -238,4 +296,32 @@ export function boostText(boosts: Boosts): string {
 
 export function isSetEmpty(set: PokemonSet | null | undefined): boolean {
   return !set || !set.species;
+}
+
+export interface MagicNumbers {
+  /** 'up': the nature adds a bonus point at these SP. 'down': stop here, the next SP is wasted. */
+  kind: 'up' | 'down';
+  values: number[];
+}
+
+/**
+ * SP worth stopping at on a stat the nature changes. With no nature effect every SP adds exactly 1,
+ * so there are none. A raised stat gains 2 at a few SP (the bonus point lands there); a lowered stat
+ * gains nothing at a few SP, so the value just before each wasted point is the one to stop at.
+ */
+export function magicNumbers(set: PokemonSet, stat: Stat, mega = true): MagicNumbers | undefined {
+  const nature = set.nature ? gen.natures.get(toID(set.nature)) : undefined;
+  if (!nature || nature.plus === nature.minus || (nature.plus !== stat && nature.minus !== stat)) return undefined;
+  const at = (v: number) => statsOf({ ...set, sp: { ...set.sp, [stat]: v } }, mega)?.[stat];
+  const values: number[] = [];
+  let prev = at(0);
+  if (prev === undefined) return undefined;
+  for (let v = 1; v <= SP_MAX_PER_STAT; v++) {
+    const cur = at(v)!;
+    const gain = cur - prev;
+    if (nature.plus === stat && gain >= 2) values.push(v);
+    if (nature.minus === stat && gain === 0 && v - 1 > 0) values.push(v - 1);
+    prev = cur;
+  }
+  return { kind: nature.plus === stat ? 'up' : 'down', values };
 }

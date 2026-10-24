@@ -2020,3 +2020,51 @@ a.mon-link:hover strong {
   gap: 6px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- magic numbers & move power ---------- */
+.sp-magic {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: -2px 0 4px 72px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sp-magic.up > span:first-child {
+  color: var(--bad);
+}
+
+.sp-magic.down > span:first-child {
+  color: var(--focus);
+}
+
+.sp-magic-btn {
+  min-width: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.sp-magic-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.move-power {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.move-power strong {
+  color: var(--text);
+}

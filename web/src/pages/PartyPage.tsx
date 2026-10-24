@@ -4,7 +4,7 @@ import { gen, ko, toID } from '../lib/data';
 import { useStoredState } from '../lib/hooks';
 import { MAX_PARTIES, newParty, useParty } from '../lib/party';
 import { FORMAT_OPTIONS, roleLabel, setupsOf, SETUP_MIN_PCT, SETUP_TOP, useMetaFormat, useMetaTargets, type MetaTarget } from '../lib/meta';
-import { battleSpecies, effectiveSpeed, groupBySpeed, newSet, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
+import { battleSpecies, effectiveSpeed, groupBySpeed, newSet, setupName, spTotal, SPEED_SETUP, SP_MAX_TOTAL, type PokemonSet } from '../lib/sets';
 import { exportTeam, importTeam } from '../lib/showdown';
 import { multiplier, multiplierLabel, TYPES } from '../lib/typechart';
 import { SetEditor } from '../components/SetEditor';
@@ -105,7 +105,7 @@ function SpeedChip({ r }: { r: SpeedEntry }) {
         {scarf && <span className="chip small scarf">스카프{r.scarfPct != null && ` ${r.scarfPct}%`}</span>}
         {r.boost && (
           <span className="chip small boost">
-            {ko('moves', r.boost.move)} +{r.boost.stages}
+            {setupName(r.boost.move)} +{r.boost.stages}
             {r.boost.pct != null && ` · ${r.boost.pct}%`}
           </span>
         )}
@@ -230,7 +230,7 @@ function SpeedLine({ members }: { members: PokemonSet[] }) {
                 onClick={() => toggleSetup(move)}
                 title={`스피드 +${SPEED_SETUP[toID(move)]}랭크 · 해당 ${n}마리`}
               >
-                {ko('moves', move)} <span className="auto-tag">{n}</span>
+                {setupName(move)} <span className="auto-tag">{n}</span>
               </button>
             ))}
           </div>
@@ -399,7 +399,7 @@ export function PartyPage() {
             )
           }
         >
-          <SetEditor set={slot ?? newSet()} onChange={setSlot} />
+          <SetEditor set={slot ?? newSet()} onChange={setSlot} showMovePower />
         </Card>
 
         <div className="stack">

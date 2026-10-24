@@ -1,6 +1,6 @@
 import { movePowerOf, runCalc, type FieldInput } from '@shared/calc/champions';
 import { gen, ko, toID } from './data';
-import { battleSpecies, defaultAbility, toSide, type PokemonSet, type SideExtras } from './sets';
+import { battleAbility, battleSpecies, toSide, type PokemonSet, type SideExtras } from './sets';
 
 /** Field settings in the web app; `autoWeather: false` turns off weather from abilities. */
 export interface CalcField extends FieldInput {
@@ -16,11 +16,7 @@ const WEATHER_ABILITIES: Record<string, NonNullable<FieldInput['weather']>> = {
   snowwarning: 'Snow',
 };
 
-/** The ability a set battles with: a mega's own ability, otherwise the chosen (or default) one. */
-export function battleAbility(set: PokemonSet, extras: SideExtras): string {
-  const species = battleSpecies(set, extras.mega ?? true);
-  return species !== set.species ? defaultAbility(species) : set.ability || defaultAbility(species);
-}
+export { battleAbility };
 
 export interface AutoWeather {
   weather: NonNullable<FieldInput['weather']>;

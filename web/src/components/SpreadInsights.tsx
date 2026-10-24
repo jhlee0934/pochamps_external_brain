@@ -22,8 +22,9 @@ import {
   boostText,
   combineBoosts,
   effectiveSpeed,
-  SETUP_BOOSTS,
-  setupMovesOf,
+  setupBoost,
+  setupName,
+  setupSourcesOf,
   SP_MAX_PER_STAT,
   SP_MAX_TOTAL,
   spTotal,
@@ -52,7 +53,7 @@ function defTier(r: MoveResult | undefined): DefTier {
 }
 
 // A boosted target reads "망나뇽(용의춤)" so it never looks like the plain one.
-const monName = (t: MetaTarget) => `${targetName(t)}${t.boost ? `(${ko('moves', t.boost.move)})` : ''}`;
+const monName = (t: MetaTarget) => `${targetName(t)}${t.boost ? `(${setupName(t.boost.move)})` : ''}`;
 const withNature = (t: MetaTarget) => `${t.set.nature ? `${ko('natures', t.set.nature)} ` : ''}${monName(t)}`;
 
 interface Change {
@@ -138,7 +139,7 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
   const [setupOn, setSetupOn] = useStoredState<string[]>('pochamps.bench.setup', []);
   // My own setup moves: only those in my move slots, their stages added up.
   const [mySetupOn, setMySetupOn] = useStoredState<string[]>('pochamps.bench.mysetup', []);
-  const mySetups = setupMovesOf(set);
+  const mySetups = setupSourcesOf(set);
   const myActive = mySetups.filter((m) => mySetupOn.includes(m));
   const myActiveKey = myActive.join('|');
   const myBoosts = useMemo(() => combineBoosts(myActiveKey ? myActiveKey.split('|') : []), [myActiveKey]);
@@ -247,9 +248,9 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
               className={myActive.includes(move) ? 'toggle-btn active mine' : 'toggle-btn mine'}
               aria-pressed={myActive.includes(move)}
               onClick={() => toggleMySetup(move)}
-              title={boostText(SETUP_BOOSTS[toID(move)])}
+              title={boostText(setupBoost(move)!)}
             >
-              {ko('moves', move)}
+              {setupName(move)}
             </button>
           ))}
           {myActive.length > 0 && <span className="chip small accent">내 랭크 {boostText(myBoosts)}</span>}
@@ -265,9 +266,9 @@ export function SpreadInsights({ set, baselineKey }: { set: PokemonSet; baseline
               className={setupOn.includes(move) ? 'toggle-btn active opponent' : 'toggle-btn opponent'}
               aria-pressed={setupOn.includes(move)}
               onClick={() => toggleSetup(move)}
-              title={`${boostText(SETUP_BOOSTS[toID(move)])} · 해당 ${n}마리`}
+              title={`${boostText(setupBoost(move)!)} · 해당 ${n}마리`}
             >
-              {ko('moves', move)} <span className="auto-tag">{n}</span>
+              {setupName(move)} <span className="auto-tag">{n}</span>
             </button>
           ))}
         </div>
